@@ -45,6 +45,13 @@ def main():
             'error: "USE_LOCALHOST" should be set to either "true" or "false" in the ".env" file'
         )
         sys.exit(1)
+    
+    local_url = os.getenv("LOCAL_URL")
+    if local_url == "":
+        local_url = "localhost"
+    local_port = os.getenv("LOCAL_PORT")
+    if local_port == "":
+        local_port = 80
 
     username = os.getenv("HANABI_USERNAME")
     if username == "":
@@ -62,7 +69,7 @@ def main():
         # version of the server.
         protocol = "http"
         ws_protocol = "ws"
-        host = "localhost"
+        host = local_url + ":" + local_port
     else:
         # The official site uses HTTPS.
         protocol = "https"

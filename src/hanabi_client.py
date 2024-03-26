@@ -1,3 +1,5 @@
+"""Implementation of Hanabi client."""
+
 # Imports (standard library)
 import json
 
@@ -5,45 +7,47 @@ import json
 import websocket
 
 # Imports (local application)
-from constants import ACTION
-from game_state import GameState
-from util import printf
+from src.constants import ACTION
+from src.game_state import GameState
+from src.utils import printf
 
 
 class HanabiClient:
+    """The main implementation of a Hanabi client."""
+
     def __init__(self, url, cookie):
         # Initialize all class variables.
-        self.commandHandlers = {}
+        self.command_handlers = {}
         self.tables = {}
         self.username = ""
         self.ws = None
         self.games = {}
 
         # Initialize the website command handlers (for the lobby).
-        self.commandHandlers["welcome"] = self.welcome
-        self.commandHandlers["warning"] = self.warning
-        self.commandHandlers["error"] = self.error
-        self.commandHandlers["chat"] = self.chat
-        self.commandHandlers["table"] = self.table
-        self.commandHandlers["tableList"] = self.table_list
-        self.commandHandlers["tableGone"] = self.table_gone
-        self.commandHandlers["tableStart"] = self.table_start
+        self.command_handlers["welcome"] = self.welcome
+        self.command_handlers["warning"] = self.warning
+        self.command_handlers["error"] = self.error
+        self.command_handlers["chat"] = self.chat
+        self.command_handlers["table"] = self.table
+        self.command_handlers["tableList"] = self.table_list
+        self.command_handlers["tableGone"] = self.table_gone
+        self.command_handlers["tableStart"] = self.table_start
 
         # Initialize the website command handlers (for the game).
-        self.commandHandlers["init"] = self.init
-        self.commandHandlers["gameAction"] = self.game_action
-        self.commandHandlers["gameActionList"] = self.game_action_list
-        self.commandHandlers["databaseID"] = self.database_id
+        self.command_handlers["init"] = self.init
+        self.command_handlers["gameAction"] = self.game_action
+        self.command_handlers["gameActionList"] = self.game_action_list
+        self.command_handlers["databaseID"] = self.database_id
 
         # Start the WebSocket client.
         printf('Connecting to "' + url + '".')
 
         self.ws = websocket.WebSocketApp(
             url,
-            on_message=lambda ws, message: self.websocket_message(ws, message),
-            on_error=lambda ws, error: self.websocket_error(ws, error),
-            on_open=lambda ws: self.websocket_open(ws),
-            on_close=lambda ws: self.websocket_close(ws),
+            on_message=self.websocket_message,
+            on_error=self.websocket_error,
+            on_open=self.websocket_open,
+            on_close=self.websocket_close,
             cookie=cookie,
         )
         self.ws.run_forever()
@@ -53,10 +57,12 @@ class HanabiClient:
     # ------------------
 
     def websocket_message(self, ws, message):
+        """
         # WebSocket messages from the server come in the format of:
         # commandName {"fieldName":"value"}
         # For more information, see:
-        # https://github.com/Zamiell/hanabi-live/blob/master/src/websocketMessage.go
+        # https://github.com/Hanabi-Live/hanabi-live/blob/master/server/src/websocket_message.go
+        """
         result = message.split(" ", 1)  # Split it into two things
         if len(result) != 1 and len(result) != 2:
             printf("error: received an invalid WebSocket message:")
@@ -66,16 +72,16 @@ class HanabiClient:
         command = result[0]
         try:
             data = json.loads(result[1])
-        except:
+        except TypeError:
             printf(
                 'error: the JSON data for the command of "' + command + '" was invalid'
             )
             return
 
-        if command in self.commandHandlers:
+        if command in self.command_handlers:
             printf('debug: got command "' + command + '"')
             try:
-                self.commandHandlers[command](data)
+                self.command_handlers[command](data)
             except Exception as e:
                 printf('error: command handler for "' + command + '" failed:', e)
                 return
@@ -331,10 +337,13 @@ class HanabiClient:
     # ------------
 
     def decide_action(self, table_id):
+        """The main logic to determine actions to do."""
+
         state = self.games[table_id]
 
         # The server expects to be told about actions in the following format:
-        # https://github.com/Zamiell/hanabi-live/blob/master/src/command_action.go
+        # https://github.com/Hanabi-Live/hanabi-live/blob/main/server/src/command_action.go
+        
 
         # Decide what to do.
         if state.clue_tokens > 0:

@@ -1,84 +1,72 @@
-#!/usr/bin/env python
-
-import sys
-
-# The "dotenv" module does not work in Python 2
-if sys.version_info < (3, 0):
-    printf("This script requires Python 3.x.")
-    sys.exit(1)
+#!/usr/bin/env python3
 
 # Imports (standard library)
 import os
+import sys
 
 # Imports (3rd-party)
+# The "dotenv" module does not work in Python 2
 import dotenv
 import requests
 
 # Imports (local application)
-from hanabi_client import HanabiClient
-from util import printf
+from src.hanabi_client import HanabiClient
+from src.utils import printf
 
+LOGIN_PATH = "/login"
+WS_PATH="/ws"
 
-# Authenticate, login to the WebSocket server, and run forever.
 def main():
+    """Authenticate, login to the WebSocket server, and run forever."""
+
     # Check to see if the ".env" file exists.
     env_path = os.path.join(os.path.realpath(os.path.dirname(__file__)), ".env")
     if not os.path.exists(env_path):
         printf(
-            'error: the ".env" file does not exist; copy the ".env_template" file to ".env" and edit the values accordingly'
+            'error: the ".env" file does not exist;'
+            'copy the ".env_template" file to ".env" and '
+            'edit the values accordingly'
         )
         sys.exit(1)
 
     # Load environment variables from the ".env" file.
     dotenv.load_dotenv()
 
-    use_localhost = os.getenv("USE_LOCALHOST")
-    if use_localhost == "":
-        printf('error: "USE_LOCALHOST" is blank in the ".env" file')
+    username = os.getenv("HANABI_USERNAME")
+    password = os.getenv("HANABI_PASSWORD")
+    if username == "" or password == "":
+        printf('error: username and/or password is missing the ".env" file')
         sys.exit(1)
-    if use_localhost == "true":
-        use_localhost = True
-    elif use_localhost == "false":
-        use_localhost = False
-    else:
-        printf(
-            'error: "USE_LOCALHOST" should be set to either "true" or "false" in the ".env" file'
-        )
-        sys.exit(1)
-    
+
     local_url = os.getenv("LOCAL_URL")
+    local_port = os.getenv("LOCAL_PORT")
     if local_url == "":
         local_url = "localhost"
-    local_port = os.getenv("LOCAL_PORT")
     if local_port == "":
         local_port = 80
 
-    username = os.getenv("HANABI_USERNAME")
-    if username == "":
-        printf('error: "HANABI_USERNAME" is blank in the ".env" file')
-        sys.exit(1)
+    # The official site uses HTTPS.
+    protocol = "https"
+    ws_protocol = "wss"
+    host = "hanab.live"
 
-    password = os.getenv("HANABI_PASSWORD")
-    if password == "":
-        printf('error: "HANABI_PASSWORD" is blank in the ".env" file')
-        sys.exit(1)
-
-    # Get an authenticated cookie by POSTing to the login handler.
-    if use_localhost:
+    use_localhost = os.getenv("USE_LOCALHOST")
+    if use_localhost == "true":
         # Assume that we are not using a certificate if we are running a local
         # version of the server.
         protocol = "http"
         ws_protocol = "ws"
         host = local_url + ":" + local_port
-    else:
-        # The official site uses HTTPS.
-        protocol = "https"
-        ws_protocol = "wss"
-        host = "hanab.live"
-    path = "/login"
-    ws_path = "/ws"
-    url = protocol + "://" + host + path
-    ws_url = ws_protocol + "://" + host + ws_path
+    elif use_localhost not in ["false", ""]:
+        printf(
+            'error: "USE_LOCALHOST" should be set to either "true" or "false" '
+            'or leave as empty in the ".env" file'
+        )
+        sys.exit(1)
+
+    url = protocol + "://" + host + LOGIN_PATH
+    ws_url = ws_protocol + "://" + host + WS_PATH
+
     printf('Authenticating to "' + url + '" with a username of "' + username + '".')
     resp = requests.post(
         url,
@@ -89,6 +77,7 @@ def main():
             # client, but the server will also accept "bot" as a valid version.
             "version": "bot",
         },
+        timeout=10
     )
 
     # Handle failed authentication and other errors.
@@ -108,6 +97,7 @@ def main():
         printf(resp.headers)
         sys.exit(1)
 
+    # Start!
     HanabiClient(ws_url, cookie)
 
 

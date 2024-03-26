@@ -1,10 +1,14 @@
-from constants import MAX_CLUE_NUM
+"""The game snapshot of a moment."""
+
+from src.constants import MAX_CLUE_NUM
 
 
 # This is just a reference. For a fully-fledged bot, the game state would need
 # to be more specific. (For example, a card object should contain the positive
 # and negative clues that are "on" the card.)
 class GameState:
+    """The game state from our own view."""
+
     replaying_past_actions = True
     clue_tokens = MAX_CLUE_NUM
     player_names = []
@@ -14,3 +18,5 @@ class GameState:
     discard_pile = []
     turn = -1
     current_player_index = -1
+
+    # TODO: add functions to update game states when a player reacts.

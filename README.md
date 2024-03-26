@@ -9,10 +9,10 @@ This repo will implement a mainly [rule-based](https://docs.google.com/document/
 - Install the dependencies:
   - `pip install -r requirements.txt`
 - Set up environment variables:
-  - `cp .env_template src/.env`
-  - `vim src/.env`
+  - `cp .env_template .env`
+  - `vim .env`
 - Run it:
-  - `python src/main.py`
+  - `python main.py`
 - In a browser, log on to the website and start a new table.
 - In the pre-game chat window, send a private message to the bot(s) in order to get them to join you:
   - `/msg [robot_username] /join`

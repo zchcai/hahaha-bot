@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""The main module for the Hanabi bot."""
 
 # Imports (standard library)
 import os

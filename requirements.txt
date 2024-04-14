@@ -1,3 +1,4 @@
+jsonpickle
 python-dotenv
 requests
 websocket-client

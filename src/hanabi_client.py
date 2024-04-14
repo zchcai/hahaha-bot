@@ -7,9 +7,11 @@ import json
 import websocket
 
 # Imports (local application)
+from src.card import Card
+from src.clue import Clue
 from src.constants import ACTION
 from src.game_state import GameState
-from src.utils import printf
+from src.utils import printf, dump
 
 
 class HanabiClient:
@@ -19,6 +21,7 @@ class HanabiClient:
         # Initialize all class variables.
         self.command_handlers = {}
         self.tables = {}
+        self.current_table_id = None
         self.username = ""
         self.ws = None
         self.games = {}
@@ -52,6 +55,12 @@ class HanabiClient:
         )
         self.ws.run_forever()
 
+    def print_debug_info(self):
+        printf("==============DEBUG===============\n")
+        dump(self.tables)
+        dump(self.games[self.current_table_id])
+        printf("==============DEBUG===============\n")
+
     # ------------------
     # WebSocket Handlers
     # ------------------
@@ -83,7 +92,7 @@ class HanabiClient:
             try:
                 self.command_handlers[command](data)
             except Exception as e:
-                printf('error: command handler for "' + command + '" failed:', e)
+                printf('error: command handler for "' + command + '" failed:', e, data)
                 return
         else:
             printf('debug: ignoring command "' + command + '"')
@@ -132,6 +141,13 @@ class HanabiClient:
 
         if command == "join":
             self.chat_join(data)
+        elif command == "please":
+            try:
+                self.decide_action(self.current_table_id)
+            except Exception as e:
+                printf('Error when deciding action: ', e)
+        elif command == "debug":
+            self.print_debug_info()
         else:
             msg = "That is not a valid command."
             self.chat_reply(msg, data["who"])
@@ -147,7 +163,7 @@ class HanabiClient:
 
             if data["who"] in table["players"]:
                 if len(table["players"]) == 6:
-                    msg = "Your game is full. Please make room for me before requesting that I join your game."
+                    msg = "Your game is full; no room for me to join the game."
                     self.chat_reply(msg, data["who"])
                     return
 
@@ -181,6 +197,7 @@ class HanabiClient:
         # the next step is to request some high-level information about the
         # game (e.g. number of players). The server will respond with an "init"
         # command.
+        self.current_table_id = data["tableID"]
         self.send(
             "getGameInfo1",
             {
@@ -204,9 +221,9 @@ class HanabiClient:
         state.player_names = data["playerNames"]
         state.our_player_index = data["ourPlayerIndex"]
 
-        # Initialize the hands for each player (an array of cards).
+        # Initialize the hands for each player (an array of Cards).
         for _ in range(len(state.player_names)):
-            state.hands.append([])
+            state.player_hands.append([])
 
         # Initialize the play stacks.
         """
@@ -218,7 +235,7 @@ class HanabiClient:
         """
         num_suits = 5
         for _ in range(num_suits):
-            state.play_stacks.append([])
+            state.play_stacks.append(0)
 
         # At this point, the JavaScript client would have enough information to
         # load and display the game UI. For our purposes, we do not need to
@@ -246,11 +263,9 @@ class HanabiClient:
 
         # We just received a list of all of the actions that have occurred thus
         # far in the game.
+        # When the game just starts, they are the drawing actions.
         for action in data["list"]:
             self.handle_action(action, data["tableID"])
-
-        if state.current_player_index == state.our_player_index:
-            self.decide_action(data["tableID"])
 
         # Let the server know that we have finished "loading the UI" (so that
         # our name does not appear as red / disconnected).
@@ -261,38 +276,41 @@ class HanabiClient:
             },
         )
 
+        # Start the game if we are the first player.
+        if state.current_player_index == state.our_player_index:
+            self.decide_action(data["tableID"])
+
     def handle_action(self, data, table_id):
-        printf(
-            'debug: got a game action of "%s" for table %d' % (data["type"], table_id)
-        )
+        printf(f"debug: 'gameAction' of '{data['type']}' for table {table_id}")
+        printf(f"debug: \t\t{data}")
 
         state = self.games[table_id]
 
         if data["type"] == "draw":
             # Add the newly drawn card to the player's hand.
-            hand = state.hands[data["playerIndex"]]
-            hand.append(
-                {
-                    "order": data["order"],
-                    "suit_index": data["suitIndex"],
-                    "rank": data["rank"],
-                }
-            )
+            state.player_hands[data["playerIndex"]].append(
+                Card(
+                    order=data["order"],
+                    suit_index=data["suitIndex"],
+                    rank=data["rank"]))
 
         elif data["type"] == "play":
-            player_index = data["which"]["playerIndex"]
-            order = data["which"]["order"]
+            # This is a successful play.
+            # A boom will be classified as a discard.
+            player_index = data["playerIndex"]
+            order = data["order"]
             card = self.remove_card_from_hand(state, player_index, order)
             if card is not None:
-                # TODO Add the card to the play stacks.
-                pass
+                # TODO: check expectation.
+                state.play_stacks[card.suit_index] += 1
 
         elif data["type"] == "discard":
-            player_index = data["which"]["playerIndex"]
-            order = data["which"]["order"]
+            player_index = data["playerIndex"]
+            order = data["order"]
             card = self.remove_card_from_hand(state, player_index, order)
             if card is not None:
                 # TODO Add the card to the discard stacks.
+                # TODO: check expectation.
                 pass
 
             # Discarding adds a clue. But misplays are represented as discards,
@@ -301,12 +319,39 @@ class HanabiClient:
                 state.clue_tokens += 1
 
         elif data["type"] == "clue":
-            # Each clue costs one clue token.
-            state.clue_tokens -= 1
+            # Parse clue details.
+            clue = Clue()
+            clue.hint_type = 1 if data["clue"]["type"] == 1 else 2
+            clue.hint_value = data["clue"]["value"]
+            clue.giver_index = data["giver"]
+            clue.receiver_index = data["target"]
+            clue.turn = data["turn"]
 
-            # TODO We might also want to update the state of cards that are
-            # "touched" by the clue so that we can keep track of the positive
-            # and negative information "on" the card.
+            # Add clue into touched cards.
+            cards = state.player_hands[clue.receiver_index]
+            num_cards = len(cards)
+            possible_play_mark = False
+
+            # TODO: check discard slot firstly.
+            # TODO: negative information tracking.
+            # TODO: finesse
+            for i in range(num_cards):
+                # From draw slot to discard slot.
+                card = cards[num_cards - i - 1]
+                if card.order in data["list"]:
+                    card.add_clue(clue)
+                    if clue.hint_type == 1:
+                        card.rank = clue.hint_value
+                    elif clue.hint_type == 2:
+                        card.suit_index = clue.hint_value
+                        if possible_play_mark is False:
+                            card.clues[-1].classification = 1
+                            possible_play_mark = True
+                        else:
+                            card.clues[-1].classification = 2
+
+            # Update game state: each clue costs one clue token.
+            state.clue_tokens -= 1
 
         elif data["type"] == "turn":
             # A turn is comprised of one or more game actions (e.g. play +
@@ -336,50 +381,86 @@ class HanabiClient:
     # AI functions
     # ------------
 
-    def decide_action(self, table_id):
+    def decide_action(self, table_id=None):
         """The main logic to determine actions to do."""
 
+        if table_id is None:
+            table_id = self.current_table_id
         state = self.games[table_id]
 
         # The server expects to be told about actions in the following format:
         # https://github.com/Hanabi-Live/hanabi-live/blob/main/server/src/command_action.go
-        
+
+        cards = state.player_hands[state.our_player_index]
+        num_cards = len(cards)
 
         # Decide what to do.
-        if state.clue_tokens > 0:
-            # There is a clue available, so give a rank clue to the next
-            # person's slot 1 card.
+        # TODO: first react to urgent situations.
 
-            # Target the next player.
-            target_index = state.our_player_index + 1
-            if target_index > len(state.player_names) - 1:
-                target_index = 0
+        # Play cards if possible.
+        for i in range(num_cards):
+            # From draw slot to discard slot
+            card = cards[num_cards - i - 1]
+            if state.is_playable(card):
+                self.play_card(card.order)
+                return
 
-            # Cards are added oldest to newest, so "slot 1" is the final
-            # element in the list.
-            target_hand = state.hands[target_index]
-            slot_1_card = target_hand[-1]
+        # Discard when neither a play nor a clue.
+        if state.clue_tokens == 0:
+            # There are no clues available, so discard our oldest unclued card.
+            for i in range(num_cards):
+                card = cards[i]
+                if len(card.clues) == 0:
+                    self.discard_card(card.order)
+                    return
 
-            self.send(
-                "action",
-                {
-                    "tableID": table_id,
-                    "type": ACTION.RANK_CLUE,
-                    "target": target_index,
-                    "value": slot_1_card["rank"],
-                },
-            )
-        else:
-            # There are no clues available, so discard our oldest card.
-            oldest_card = state.hands[state.our_player_index][0]
-            self.send(
-                "action",
-                {
-                    "tableID": table_id,
-                    "type": ACTION.DISCARD,
-                    "target": oldest_card["order"],
-                },
-            )
+
+        # Target the next player.
+        target_index = (state.our_player_index + 1) % len(state.player_names)
+        printf(target_index)
+
+        # Cards are added oldest to newest, so "draw slot" is the final
+        # element in the list.
+        target_hand = state.player_hands[target_index]
+        for i in range(num_cards):
+            card = target_hand[num_cards - i - 1]
+            if len(card.clues) > 1:
+                continue
+
+            if len(card.clues) == 0:
+                self.send(
+                    "action",
+                    {
+                        "tableID": table_id,
+                        "type": ACTION.RANK_CLUE,
+                        "target": target_index,
+                        "value": card.rank,
+                    },
+                )
+            elif len(card.clues) == 1:
+                existing_clue_type = card.clues[0].hint_type
+                if existing_clue_type == 1:
+                    self.send(
+                        "action",
+                        {
+                            "tableID": table_id,
+                            "type": ACTION.COLOR_CLUE,
+                            "target": target_index,
+                            "value": card.suit_index,
+                        },
+                    )
+                elif existing_clue_type == 2:
+                    self.send(
+                        "action",
+                        {
+                            "tableID": table_id,
+                            "type": ACTION.RANK_CLUE,
+                            "target": target_index,
+                            "value": card.rank,
+                        },
+                    )
+            return
+
 
     # -----------
     # Subroutines
@@ -399,21 +480,42 @@ class HanabiClient:
         if not isinstance(data, dict):
             data = {}
         self.ws.send(command + " " + json.dumps(data))
-        printf('debug: sent command "' + command + '"')
+        printf(f'debug: sent command "{command}": {data}')
+
+    def discard_card(self, card_order):
+        self.send("action",
+                  {
+                      "tableID": self.current_table_id,
+                      "type": ACTION.DISCARD,
+                      "target": card_order,
+                  },
+                  )
+
+    def play_card(self, card_order):
+        self.send("action",
+                  {
+                      "tableID": self.current_table_id,
+                      "type": ACTION.PLAY,
+                      "target": card_order,
+                  },
+                  )
 
     def remove_card_from_hand(self, state, player_index, order):
-        hand = state.hands[player_index]
+        hand = state.player_hands[player_index]
+
         card_index = -1
-        for i in range(len(hand)):
-            card = hand[i]
-            if card["order"] == order:
+        for i, card in enumerate(hand):
+            if card.order == order:
                 card_index = i
+                break
+
         if card_index == -1:
             printf(
                 "error: unable to find card with order " + str(order) + " in"
                 "the hand of player " + str(player_index)
             )
             return None
+
         card = hand[card_index]
         del hand[card_index]
         return card

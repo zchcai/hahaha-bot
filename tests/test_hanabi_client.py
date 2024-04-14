@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 # Imports (local application)
+from src.card import Card
 from src.constants import ACTION
 from src.hanabi_client import HanabiClient
 from src.game_state import GameState
@@ -26,13 +27,14 @@ class TestDecideAction(unittest.TestCase):
         state.clue_tokens = 0
         state.current_player_index = 0
         state.our_player_index = 0
-        state.hands = [
+        state.player_hands = [
             # Player 0 (self)
-            [{ 'order': 5, 'rank': 2, 'suit_index': 3}, # discard slot
-             { 'order': 4, 'rank': 3, 'suit_index': 4},
-             { 'order': 3, 'rank': 4, 'suit_index': 1},
-             { 'order': 2, 'rank': 4, 'suit_index': 0},
-             { 'order': 1, 'rank': 5, 'suit_index': 2} # draw slot
+            [
+                Card(order=5, rank=2, suit_index=3),    # discard slot
+                Card(order=4, rank=3, suit_index=4),
+                Card(order=3, rank=4, suit_index=1),
+                Card(order=2, rank=4, suit_index=0),
+                Card(order=1, rank=5, suit_index=2)     # draw slot
             ],
             # Player 1 (the next player)
             []

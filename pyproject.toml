@@ -1,0 +1,6 @@
+# pyproject.toml
+[tool.coverage.run]
+source = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "--cov --cov-report=lcov:lcov.info --cov-report=term"

@@ -21,3 +21,9 @@ This repo will implement a mainly [rule-based](https://docs.google.com/document/
 - Then, start the game and ~~play~~ debug! :sweat_smile:
   - We can use this to let it print debug information: 
     - `/msg [robot_username] /debug`
+
+## Development Tips
+
+### [Live Test Coverage](https://jasonstitt.com/perfect-python-live-test-coverage)
+- Run `pip3 install pytest-watch` and open a terminal to run `pytest-watch`. It will automatically check the unit test code coverage when files get changed.
+- (Optional) If using VS Code, then install [Coverage Gutters](https://marketplace.visualstudio.com/items?itemName=ryanluker.vscode-coverage-gutters) and run `Coverage Gutters: Watch`. It will read the auto-updated `lcov.info` file and update the coverage lines accordingly.

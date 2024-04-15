@@ -413,7 +413,10 @@ class HanabiClient:
                 if len(card.clues) == 0:
                     self.discard_card(card.order)
                     return
-
+            # In a real game, it should not arrive here, however, if it does,
+            # then we need to do something.
+            self.play_card(cards[0].order)
+            return
 
         # Target the next player.
         target_index = (state.our_player_index + 1) % len(state.player_names)

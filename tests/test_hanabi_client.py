@@ -22,6 +22,7 @@ class TestDecideAction(unittest.TestCase):
         mock_ws_instance = MagicMock()
         mock_websocketapp.return_value = mock_ws_instance
         client = HanabiClient("some_uri", "some_cookie")
+        client.current_table_id = 42
         client.send = MagicMock()
         state = GameState()
         state.clue_tokens = 0

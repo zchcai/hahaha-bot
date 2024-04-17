@@ -20,3 +20,6 @@ class ACTION:
 # game with).
 # https://github.com/Hanabi-Live/hanabi-live/blob/c936808df2b78aa4a24be7b0d622fceb75393f17/server/src/constants.go#L91
 MAX_CLUE_NUM = 8
+
+# No matter which suits, the max rank is always 5.
+MAX_RANK = 5

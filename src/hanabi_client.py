@@ -330,10 +330,11 @@ class HanabiClient:
             # Add clue into touched cards.
             cards = state.player_hands[clue.receiver_index]
             num_cards = len(cards)
+
+            # single focus
             possible_play_mark = False
 
             # TODO: check discard slot firstly.
-            # TODO: negative information tracking.
             # TODO: finesse
             for i in range(num_cards):
                 # From draw slot to discard slot.
@@ -349,6 +350,13 @@ class HanabiClient:
                             possible_play_mark = True
                         else:
                             card.clues[-1].classification = 2
+                else: # append negative information
+                    if clue.hint_type == 1:
+                        if card.rank not in card.negative_ranks:
+                            card.negative_ranks.append(clue.hint_value)
+                    elif clue.hint_type == 2:
+                        if card.suit_index not in card.negative_colors:
+                            card.negative_colors.append(clue.hint_value)
 
             # Update game state: each clue costs one clue token.
             state.clue_tokens -= 1
@@ -418,9 +426,8 @@ class HanabiClient:
             self.play_card(cards[0].order)
             return
 
-        # Target the next player.
+        # TODO: more complicated clue logic.
         target_index = (state.our_player_index + 1) % len(state.player_names)
-        printf(target_index)
 
         # Cards are added oldest to newest, so "draw slot" is the final
         # element in the list.

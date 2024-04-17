@@ -438,37 +438,13 @@ class HanabiClient:
                 continue
 
             if len(card.clues) == 0:
-                self.send(
-                    "action",
-                    {
-                        "tableID": table_id,
-                        "type": ACTION.RANK_CLUE,
-                        "target": target_index,
-                        "value": card.rank,
-                    },
-                )
+                self.rank_clue(target_index, card.rank)
             elif len(card.clues) == 1:
                 existing_clue_type = card.clues[0].hint_type
                 if existing_clue_type == 1:
-                    self.send(
-                        "action",
-                        {
-                            "tableID": table_id,
-                            "type": ACTION.COLOR_CLUE,
-                            "target": target_index,
-                            "value": card.suit_index,
-                        },
-                    )
+                    self.color_clue(target_index, card.suit_index)
                 elif existing_clue_type == 2:
-                    self.send(
-                        "action",
-                        {
-                            "tableID": table_id,
-                            "type": ACTION.RANK_CLUE,
-                            "target": target_index,
-                            "value": card.rank,
-                        },
-                    )
+                    self.rank_clue(target_index, card.rank)
             return
 
 
@@ -492,11 +468,31 @@ class HanabiClient:
         self.ws.send(command + " " + json.dumps(data))
         printf(f'debug: sent command "{command}": {data}')
 
+    def color_clue(self, target, color):
+        self.send("action",
+                  {
+                      "tableID": self.current_table_id,
+                      "type": ACTION.COLOR_CLUE.value,
+                      "target": target,
+                      "value": color,
+                  },
+        )
+
+    def rank_clue(self, target, rank):
+        self.send("action",
+                  {
+                      "tableID": self.current_table_id,
+                      "type": ACTION.RANK_CLUE.value,
+                      "target": target,
+                      "value": rank,
+                  },
+        )
+
     def discard_card(self, card_order):
         self.send("action",
                   {
                       "tableID": self.current_table_id,
-                      "type": ACTION.DISCARD,
+                      "type": ACTION.DISCARD.value,
                       "target": card_order,
                   },
                   )
@@ -505,7 +501,7 @@ class HanabiClient:
         self.send("action",
                   {
                       "tableID": self.current_table_id,
-                      "type": ACTION.PLAY,
+                      "type": ACTION.PLAY.value,
                       "target": card_order,
                   },
                   )

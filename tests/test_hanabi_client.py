@@ -56,7 +56,7 @@ class TestDecideAction(unittest.TestCase):
 
         client.send.assert_called_once_with(
             'action',
-            {'tableID': FAKE_TABLE_ID, 'type': ACTION.PLAY, 'target': 2})
+            {'tableID': FAKE_TABLE_ID, 'type': ACTION.PLAY.value, 'target': 2})
 
 
     @patch('websocket.WebSocketApp')
@@ -97,7 +97,7 @@ class TestDecideAction(unittest.TestCase):
 
         client.send.assert_called_once_with(
             'action',
-            {'tableID': FAKE_TABLE_ID, 'type': ACTION.PLAY, 'target': 0})
+            {'tableID': FAKE_TABLE_ID, 'type': ACTION.PLAY.value, 'target': 0})
 
     @patch('websocket.WebSocketApp')
     def test_discard_when_without_clue_tokens(self, mock_websocketapp):
@@ -138,7 +138,7 @@ class TestDecideAction(unittest.TestCase):
 
         client.send.assert_called_once_with(
             'action',
-            {'tableID': FAKE_TABLE_ID, 'type': ACTION.DISCARD, 'target': 0})
+            {'tableID': FAKE_TABLE_ID, 'type': ACTION.DISCARD.value, 'target': 0})
 
 if __name__ == '__main__':
     unittest.main()

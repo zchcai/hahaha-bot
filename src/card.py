@@ -2,38 +2,27 @@
 
 import copy
 
+from dataclasses import dataclass, field
 from src.clue import Clue
 
+@dataclass
 class Card:
     """Card information at one player's hand."""
-
     # basic information
-    order = -1
-    rank = -1
-    suit_index = -1
+    order: int = -1
+    rank: int = -1
+    suit_index: int = -1
 
     # clue sequence
-    clues: list[Clue] = []
+    clues: list = field(default_factory=list)
 
     # finesse
-    finesse_color = -1
-    finesse_rank = -1
+    finesse_color: int = -1
+    finesse_rank: int = -1
 
     # negative information
-    negative_ranks: list[int] = []
-    negative_colors: list[int] = []
-
-    def __init__(self, order, rank=-1, suit_index=-1, clues=None, negative_ranks=None, negative_colors=None):
-        self.order = order
-        self.rank = rank
-        self.suit_index = suit_index
-        if clues is not None:
-            self.clues = copy.deepcopy(clues)
-        if negative_ranks is not None:
-            self.negative_ranks = copy.deepcopy(negative_ranks)
-        if negative_colors is not None:
-            self.negative_colors = copy.deepcopy(negative_colors)
-
+    negative_colors: list = field(default_factory=list)
+    negative_ranks: list = field(default_factory=list)
 
     def add_clue(self, clue: Clue):
-        self.clues.append(copy.deepcopy(clue))
+        self.clues.append(copy.copy(clue))

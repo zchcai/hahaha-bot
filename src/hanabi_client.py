@@ -309,9 +309,7 @@ class HanabiClient:
             order = data["order"]
             card = self.remove_card_from_hand(state, player_index, order)
             if card is not None:
-                # TODO Add the card to the discard stacks.
-                # TODO: check expectation.
-                pass
+                state.discard_pile.append(card)
 
             # Discarding adds a clue. But misplays are represented as discards,
             # and misplays do not grant a clue.
@@ -415,42 +413,86 @@ class HanabiClient:
 
         # Discard when neither a play nor a clue.
         if state.clue_tokens == 0:
-            # There are no clues available, so discard our oldest unclued card.
-            for i in range(num_cards):
-                card = cards[i]
-                if len(card.clues) == 0:
-                    self.discard_card(card.order)
-                    return
-            # In a real game, it should not arrive here, however, if it does,
-            # then we need to do something.
-            self.play_card(cards[0].order)
+            self.try_discard(cards)
             return
 
-        # TODO: more complicated clue logic.
-        target_index = (state.our_player_index + 1) % len(state.player_names)
-
-        # Cards are added oldest to newest, so "draw slot" is the final
-        # element in the list.
-        target_hand = state.player_hands[target_index]
-        for i in range(num_cards):
-            card = target_hand[num_cards - i - 1]
-            if len(card.clues) > 1:
+        # Try to clue immediate playable cards by color clue or rank clue.
+        # First, search all playable candidates.
+        num_players = len(state.player_names)
+        immediate_playable_cards_per_player = []
+        for player in range(num_players):
+            immediate_playable_cards_per_player.append([])
+            if player == state.our_player_index:
+                continue
+            for card in state.player_hands[player]:
+                if state.is_playable(card):
+                    immediate_playable_cards_per_player[player].append(card)
+            if len(immediate_playable_cards_per_player[player]) == 0:
+                # no immediate playable card for this player
                 continue
 
-            if len(card.clues) == 0:
-                self.rank_clue(target_index, card.rank)
-            elif len(card.clues) == 1:
-                existing_clue_type = card.clues[0].hint_type
-                if existing_clue_type == 1:
-                    self.color_clue(target_index, card.suit_index)
-                elif existing_clue_type == 2:
-                    self.rank_clue(target_index, card.rank)
-            return
+            # Second, check each candidate one by one.
+            for playable_card in immediate_playable_cards_per_player[player]:
+                target_color = playable_card.suit_index
+                target_rank = playable_card.rank
 
+                # Is it already been clued or not?
+                if len(playable_card.clues) > 0:
+                    # Is it given a play clue?
+                    if playable_card.clues[-1].classification == 1:
+                        continue
+                    # Otherwise, we just double clue it with different clue.
+                    if playable_card.clues[-1].hint_type == 1:
+                        self.color_clue(player, target_color)
+                    else:
+                        self.rank_clue(player, target_rank)
+                    return
+
+                # Can we give color clue or rank clue?
+                can_give_color_clue = True
+                can_give_rank_clue = True
+                # First check whether there is any card left to it.
+                for i in range(num_cards):
+                    potential_touched_card = state.player_hands[player][i]
+                    if potential_touched_card.suit_index == target_color:
+                        # if the order is larger, it means it is left to it.
+                        if potential_touched_card.order > playable_card.order:
+                            can_give_color_clue = False
+                    if potential_touched_card.rank == target_rank:
+                        if potential_touched_card.order > playable_card.order:
+                            can_give_rank_clue = False
+
+                # For playable cards, color clue is better than rank clue.
+                if can_give_color_clue:
+                    self.color_clue(player, target_color)
+                    return
+                if can_give_rank_clue:
+                    self.rank_clue(player, target_rank)
+                    return
+        
+        # Nothing we can do, so discard.
+        self.try_discard(cards)
+        return
 
     # -----------
     # Subroutines
     # -----------
+
+    def try_discard(self, cards):
+        # Discard trash cards firstly.
+        for card in cards:
+            if self.games[self.current_table_id].is_trash(card):
+                self.discard_card(card.order)
+                return
+        # Then oldest unclued card.
+        for card in cards:
+            if len(card.clues) == 0:
+                self.discard_card(card.order)
+                return
+        # In a real game, it should not arrive here, however, if it does,
+        # then we need to do something.
+        self.play_card(cards[-1].order)
+        return
 
     def chat_reply(self, message, recipient):
         self.send(

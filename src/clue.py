@@ -1,6 +1,6 @@
 """The metadata for one clue."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # pylint: disable=too-few-public-methods
 
@@ -21,3 +21,6 @@ class Clue:
 
     # classification of this clue
     classification: int = -1 # 1 - "play", 2 - "save", 3 - "trash"
+
+    # touched cards orders (i.e., No.)
+    touched_orders: list = field(default_factory=list)

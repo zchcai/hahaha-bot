@@ -28,10 +28,29 @@ class GameState:
     turn: int = -1
     current_player_index: int = -1
 
-    def is_trash(self, card: Card):
-        self.reflect_negative_info(card)
+    def will_not_discard(self, player):
+        for card in self.player_hands[player]:
+            for clue in card.clues:
+                if clue.classification == 1:
+                    return True
+        return False
 
-        # Untouched card is always useful.
+    def double_clued_cards(self, player, clue):
+        double_clued = []
+        for card in self.player_hands[player]:
+            if card.order in clue.touched_orders and len(card.clues) > 0:
+                # There is a double clued card now.
+                double_clued.append(card)
+        return double_clued
+
+    def current_discard_slot(self, player):
+        for card in self.player_hands[player]:
+            if len(card.clues) == 0:
+                return card
+        return None
+
+    def is_trash(self, card: Card):
+        # Untouched card is usually useful.
         if card.suit_index == -1 and card.rank == -1:
             return False
 
@@ -69,8 +88,24 @@ class GameState:
                 return True
         return False
 
+    def is_critical(self, card: Card):
+        if self.is_trash(card):
+            return False
+
+        if card.rank == 5:
+            return True
+
+        if card.rank == 1:
+            return False
+
+        for discarded_card in self.discard_pile:
+            if discarded_card.rank == card.rank and discarded_card.suit_index == card.suit_index:
+                return True
+        return False
+
     def is_playable(self, card: Card):
-        self.reflect_negative_info(card)
+        if self.is_trash(card):
+            return False
 
         if card.suit_index != -1 and card.rank != -1:
             return self.play_stacks[card.suit_index] + 1 == card.rank
@@ -85,16 +120,3 @@ class GameState:
 
         # With clue(s), then check the latest clue whether play or not.
         return clues[-1].classification == 1
-
-    def reflect_negative_info(self, card: Card):
-        # reflect negative information if possible
-        if card.suit_index == -1 and len(card.negative_colors) == 4:
-            for i in range(5):
-                if i not in card.negative_colors:
-                    card.suit_index = i
-                    break
-        if card.rank == -1 and len(card.negative_ranks) == MAX_RANK - 1:
-            for i in range(1, MAX_RANK + 1):
-                if i not in card.negative_ranks:
-                    card.rank = i
-                    break

@@ -1,6 +1,7 @@
 """Implementation of Hanabi client."""
 
 # Imports (standard library)
+import copy
 import json
 
 # Imports (3rd-party)
@@ -12,6 +13,7 @@ from src.clue import Clue
 from src.constants import ACTION
 from src.game_state import GameState
 from src.utils import printf, dump
+from src.constants import MAX_CLUE_NUM
 
 
 class HanabiClient:
@@ -253,9 +255,11 @@ class HanabiClient:
         state = self.games[data["tableID"]]
 
         # We just received a new action for an ongoing game.
+        pre_turn = state.turn
         self.handle_action(data["action"], data["tableID"])
+        post_turn = state.turn
 
-        if state.current_player_index == state.our_player_index:
+        if post_turn != pre_turn and state.current_player_index == state.our_player_index:
             self.decide_action(data["tableID"])
 
     def game_action_list(self, data):
@@ -299,16 +303,21 @@ class HanabiClient:
             # A boom will be classified as a discard.
             player_index = data["playerIndex"]
             order = data["order"]
+            played_suit_index = data["suitIndex"]
+            played_rank = data["rank"]
             card = self.remove_card_from_hand(state, player_index, order)
             if card is not None:
                 # TODO: check expectation.
-                state.play_stacks[card.suit_index] += 1
+                state.play_stacks[played_suit_index] = played_rank
 
         elif data["type"] == "discard":
             player_index = data["playerIndex"]
             order = data["order"]
             card = self.remove_card_from_hand(state, player_index, order)
             if card is not None:
+                # TODO: check expectation, especially at a boom.
+                card.rank = data["rank"]
+                card.suit_index = data["suitIndex"]
                 state.discard_pile.append(card)
 
             # Discarding adds a clue. But misplays are represented as discards,
@@ -318,43 +327,102 @@ class HanabiClient:
 
         elif data["type"] == "clue":
             # Parse clue details.
-            clue = Clue()
-            clue.hint_type = 1 if data["clue"]["type"] == 1 else 2
-            clue.hint_value = data["clue"]["value"]
-            clue.giver_index = data["giver"]
-            clue.receiver_index = data["target"]
-            clue.turn = data["turn"]
+            clue = Clue(
+                hint_type=1 if data["clue"]["type"] == 1 else 2,
+                hint_value=data["clue"]["value"],
+                giver_index=data["giver"],
+                receiver_index=data["target"],
+                turn=data["turn"],
+                touched_orders=data["list"]
+            )
 
             # Add clue into touched cards.
             cards = state.player_hands[clue.receiver_index]
-            num_cards = len(cards)
 
-            # single focus
-            possible_play_mark = False
+            # Exception: special handling for 1s.
+            if clue.hint_type == 1 and clue.hint_value == 1:
+                # all 1s are playable.
+                clue.classification = 1
+                for card in cards:
+                    if card.order in clue.touched_orders:
+                        card.add_clue(clue)
+                    else:
+                        card.add_negative_info(clue)
 
-            # TODO: check discard slot firstly.
-            # TODO: finesse
-            for i in range(num_cards):
-                # From draw slot to discard slot.
-                card = cards[num_cards - i - 1]
-                if card.order in data["list"]:
-                    card.add_clue(clue)
-                    if clue.hint_type == 1:
-                        card.rank = clue.hint_value
-                    elif clue.hint_type == 2:
-                        card.suit_index = clue.hint_value
-                        if possible_play_mark is False:
-                            card.clues[-1].classification = 1
-                            possible_play_mark = True
+                # Update game state: each clue costs one clue token.
+                state.clue_tokens -= 1
+                return
+
+            # First, we need to see whether this is a save clue.
+            discard_slot = state.current_discard_slot(clue.receiver_index)
+            double_clued_cards = state.double_clued_cards(clue.receiver_index, clue)
+
+            if (discard_slot is not None and discard_slot.order in clue.touched_orders
+                and clue.hint_type == 1):
+                # The discard slot is touched!
+                possible_save_mark = True
+                if clue.hint_value != 5:
+                    possible_save_mark = False
+                    for discarded_card in state.discard_pile:
+                        if discarded_card.rank == clue.hint_value:
+                            # TODO: remove the dup situation.
+                            # This is a critical save.
+                            possible_save_mark = True
+                            break
+                if possible_save_mark:
+                    # check whether the left-most double clued card is playable.
+                    if len(double_clued_cards) > 0:
+                        focused_card = double_clued_cards[-1]
+                        if state.is_playable(focused_card):
+                            clue.classification = 1
+                            focused_card.add_clue(clue)
+
+                            # For all other cards, assign save mark.
+                            clue.classification = 2
+                            for card in cards:
+                                if card.order not in clue.touched_orders:
+                                    card.add_negative_info(clue)
+                                else:
+                                    if card.order != focused_card.order:
+                                        card.add_clue(clue)
+                            # Update game state: each clue costs one clue token.
+                            state.clue_tokens -= 1
+                            return
+
+                    # otherwise, all cards are marked as save.
+                    clue.classification = 2
+                    for card in cards:
+                        if card.order in clue.touched_orders:
+                            card.add_clue(clue)
                         else:
-                            card.clues[-1].classification = 2
+                            card.add_negative_info(clue)
+
+                    # Update game state: each clue costs one clue token.
+                    state.clue_tokens -= 1
+                    return
+
+            # TODO: finesse
+            # Second, determine the single focus of this play clue.
+            # if no double clued, then the focus is the left-most touched card.
+            play_focus_card_order = max(clue.touched_orders)
+
+            if len(double_clued_cards) > 0:
+                # one card is double clued.
+                # if this card is playable, then this is a play clue.
+                # otherwise, ignore it.
+                focused_card = double_clued_cards[-1]
+                if state.is_playable(focused_card):
+                    play_focus_card_order = focused_card.order
+
+            for card in cards:
+                if card.order in clue.touched_orders:
+                    if card.order == play_focus_card_order:
+                        clue.classification = 1
+                    else:
+                        clue.classification = 2
+                    card.add_clue(clue)
                 else: # append negative information
-                    if clue.hint_type == 1:
-                        if card.rank not in card.negative_ranks:
-                            card.negative_ranks.append(clue.hint_value)
-                    elif clue.hint_type == 2:
-                        if card.suit_index not in card.negative_colors:
-                            card.negative_colors.append(clue.hint_value)
+                    card.add_negative_info(clue)
 
             # Update game state: each clue costs one clue token.
             state.clue_tokens -= 1
@@ -402,6 +470,27 @@ class HanabiClient:
 
         # Decide what to do.
         # TODO: first react to urgent situations.
+
+        # Check if any players' discard slot needs to be saved.
+        for player in range(len(state.player_hands)):
+            if player == state.our_player_index:
+                continue
+            discard_slot = state.current_discard_slot(player)
+            if discard_slot is not None and state.is_critical(discard_slot):
+                if state.will_not_discard(player):
+                    continue
+                
+                # We need to save them!
+                if state.clue_tokens > 0:
+                    self.rank_clue(player, discard_slot.rank)
+                else:
+                    # Be creative!
+                    my_discard_slot = state.current_discard_slot(state.our_player_index)
+                    if my_discard_slot is not None:
+                        self.discard_card(my_discard_slot.order)
+                    else:
+                        self.play_card(cards[-1].order)
+                return
 
         # Play cards if possible.
         for i in range(num_cards):
@@ -479,18 +568,25 @@ class HanabiClient:
     # -----------
 
     def try_discard(self, cards):
+        state = self.games[self.current_table_id]
+
+        if state.clue_tokens == MAX_CLUE_NUM:
+            # TODO: give clues
+            self.play_card(cards[-1].order)
+            return
+
         # Discard trash cards firstly.
         for card in cards:
             if self.games[self.current_table_id].is_trash(card):
                 self.discard_card(card.order)
                 return
+
         # Then oldest unclued card.
         for card in cards:
             if len(card.clues) == 0:
                 self.discard_card(card.order)
                 return
-        # In a real game, it should not arrive here, however, if it does,
-        # then we need to do something.
+
         self.play_card(cards[-1].order)
         return
 
@@ -564,6 +660,6 @@ class HanabiClient:
             )
             return None
 
-        card = hand[card_index]
+        card = copy.deepcopy(hand[card_index])
         del hand[card_index]
         return card

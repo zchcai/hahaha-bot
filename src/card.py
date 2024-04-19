@@ -4,6 +4,7 @@ import copy
 
 from dataclasses import dataclass, field
 from src.clue import Clue
+from src.constants import MAX_RANK
 
 @dataclass
 class Card:
@@ -26,3 +27,29 @@ class Card:
 
     def add_clue(self, clue: Clue):
         self.clues.append(copy.copy(clue))
+        if clue.hint_type == 1:
+            self.rank = clue.hint_value
+        elif clue.hint_type == 2:
+            self.suit_index = clue.hint_value
+
+        # TODO: fineese info
+
+    def add_negative_info(self, clue: Clue):
+        if clue.hint_type == 1:
+            if self.rank not in self.negative_ranks:
+                self.negative_ranks.append(clue.hint_value)
+        elif clue.hint_type == 2:
+            if self.suit_index not in self.negative_colors:
+                self.negative_colors.append(clue.hint_value)
+
+        # reflect negative information if possible
+        if self.suit_index == -1 and len(self.negative_colors) == 4:
+            for i in range(5):
+                if i not in self.negative_colors:
+                    self.suit_index = i
+                    break
+        if self.rank == -1 and len(self.negative_ranks) == MAX_RANK - 1:
+            for i in range(1, MAX_RANK + 1):
+                if i not in self.negative_ranks:
+                    self.rank = i
+                    break

@@ -13,6 +13,7 @@ This repo will implement a mainly [rule-based](https://docs.google.com/document/
   - `vim .env`
 - Run it:
   - `python main.py`
+  - `python main.py <robot_username_(password)_2> <robot_username_(password)_3> ...`
 - In a browser, log on to the website and start a new table.
 - In the pre-game chat window, send a private message to the bot(s) in order to get them to join you:
   - `/msg [robot_username] /join`

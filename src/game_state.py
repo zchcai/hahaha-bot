@@ -50,27 +50,58 @@ class GameState:
         return None
 
     def is_trash(self, card: Card):
-        # Untouched card is usually useful.
+        # Untouched card is usually assumed as useful.
         if card.suit_index == -1 and card.rank == -1:
             return False
 
+        # Hinted or deduced to know the number.
         if card.suit_index == -1 and card.rank != -1:
-            # If all suits are equal or above the rank, then it is a trash.
+            # If all possible suits are equal or above the rank, then it is a trash.
             for i in range(5):
+                if i in card.negative_colors:
+                    # skip impossible color
+                    continue
                 if self.play_stacks[i] < card.rank:
                     return False
             return True
 
+        # Hinted or deduced to know the color.
         if card.suit_index != -1 and card.rank == -1:
-            # It is a trash if this color is completed, or, the next rank are discarded.
-            if self.play_stacks[card.suit_index] == 5:
+            # It is a trash if this color is completed.
+            if self.play_stacks[card.suit_index] == MAX_RANK:
                 return True
+
+            # It is a trash if the next number is discarded already.
             count = 0
             next_rank = 1 + self.play_stacks[card.suit_index]
             for discard in self.discard_pile:
                 if discard.suit_index == card.suit_index and discard.rank == next_rank:
                     count += 1
-            return count == MAX_CARDS_PER_RANK[next_rank]
+            if count == MAX_CARDS_PER_RANK[next_rank]:
+                return True
+
+            # It is a trash if it cannot be the remaining number(s).
+            # Either seen from the discard slot, or from other hands.
+            next_number = 1 + self.play_stacks[card.suit_index] + 1
+            for j in range(next_number, MAX_RANK + 1):
+                if j in card.negative_ranks:
+                    # skip impossible rank
+                    continue
+
+                # check whether this number is all visible.
+                count = 0
+                for hand in self.player_hands:
+                    for c in hand:
+                        if c.rank == j and c.suit_index == card.suit_index:
+                            count += 1
+                for discard in self.discard_pile:
+                    if discard.suit_index == card.suit_index and discard.rank == j:
+                        count += 1
+                if count < MAX_CARDS_PER_RANK[j]:
+                    # It is still useful.
+                    return False
+            # all possible remaining ranks are impossible.
+            return True
 
         # Is this card already played?
         if self.play_stacks[card.suit_index] >= card.rank:

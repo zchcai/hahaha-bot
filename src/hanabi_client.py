@@ -181,6 +181,7 @@ class HanabiClient:
             "tableJoin",
             {
                 "tableID": table_id,
+                "password": "",
             },
         )
 
@@ -410,6 +411,8 @@ class HanabiClient:
                 # one card is double clued.
                 # if this card is playable, then this is a play clue.
                 # otherwise, ignore it.
+                # TODO: we need to apply the clue and then check.
+                # We want to make sure the newly playable card is the focus.
                 focused_card = double_clued_cards[-1]
                 if state.is_playable(focused_card):
                     play_focus_card_order = focused_card.order
@@ -426,6 +429,7 @@ class HanabiClient:
 
             # Update game state: each clue costs one clue token.
             state.clue_tokens -= 1
+            return
 
         elif data["type"] == "turn":
             # A turn is comprised of one or more game actions (e.g. play +
@@ -479,8 +483,9 @@ class HanabiClient:
             if discard_slot is not None and state.is_critical(discard_slot):
                 if state.will_not_discard(player):
                     continue
-                
+
                 # We need to save them!
+                # TODO: we don't need to save them if they have playable cards to clue or they have cards to play now.
                 if state.clue_tokens > 0:
                     self.rank_clue(player, discard_slot.rank)
                 else:
@@ -501,10 +506,12 @@ class HanabiClient:
                 return
 
         # Discard when neither a play nor a clue.
-        if state.clue_tokens == 0:
+        if state.clue_tokens <= 0:
+            state.clue_tokens = 0
             self.try_discard(cards)
             return
 
+        # TODO: don't clue already clued cards.
         # Try to clue immediate playable cards by color clue or rank clue.
         # First, search all playable candidates.
         num_players = len(state.player_names)
@@ -558,7 +565,7 @@ class HanabiClient:
                 if can_give_rank_clue:
                     self.rank_clue(player, target_rank)
                     return
-        
+
         # Nothing we can do, so discard.
         self.try_discard(cards)
         return

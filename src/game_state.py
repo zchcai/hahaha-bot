@@ -82,8 +82,7 @@ class GameState:
 
             # It is a trash if it cannot be the remaining number(s).
             # Either seen from the discard slot, or from other hands.
-            next_number = 1 + self.play_stacks[card.suit_index] + 1
-            for j in range(next_number, MAX_RANK + 1):
+            for j in range(next_rank, MAX_RANK + 1):
                 if j in card.negative_ranks:
                     # skip impossible rank
                     continue
@@ -134,6 +133,7 @@ class GameState:
                 return True
         return False
 
+    # TODO: good touch principle
     def is_playable(self, card: Card):
         if self.is_trash(card):
             return False
@@ -149,5 +149,24 @@ class GameState:
             and card.finesse_rank != -1
             and self.play_stacks[card.finesse_color] + 1 == card.finesse_rank)
 
-        # With clue(s), then check the latest clue whether play or not.
-        return clues[-1].classification == 1
+        # Firstly check the latest clue whether play or not.
+        # If it never becomes a focus, don't play.
+        with_play_clue = False
+        for clue in clues:
+            if clue.classification == 1:
+                with_play_clue = True
+        if with_play_clue is False:
+            return False
+
+        # Secondly, even interpreted as Play Clue(s), it is possible a save.
+        if card.rank != -1:
+            # no color information.
+            # check whether it is a save.
+            for i in range(5):
+                if card.rank == self.play_stacks[i] + 1:
+                    # If the last clue is not play, then don't play it now.
+                    return clues[-1].classification == 2
+            # not possible to be playable.
+            return False
+
+        return True

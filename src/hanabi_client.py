@@ -411,10 +411,12 @@ class HanabiClient:
                 # one card is double clued.
                 # if this card is playable, then this is a play clue.
                 # otherwise, ignore it.
-                # TODO: we need to apply the clue and then check.
+
                 # We want to make sure the newly playable card is the focus.
                 focused_card = double_clued_cards[-1]
-                if state.is_playable(focused_card):
+                pending_focused_card = copy.deepcopy(focused_card)
+                pending_focused_card.add_clue(clue)
+                if state.is_playable(pending_focused_card):
                     play_focus_card_order = focused_card.order
 
             for card in cards:
@@ -578,9 +580,15 @@ class HanabiClient:
         state = self.games[self.current_table_id]
 
         if state.clue_tokens == MAX_CLUE_NUM:
-            # TODO: give clues
-            self.play_card(cards[-1].order)
-            return
+            # The idea is to give highly possible trash 1s or save 5s.
+            for i in [1, 5, 2, 3, 4]:
+                for j, hand in enumerate(state.player_hands):
+                    if j == state.our_player_index:
+                        continue
+                    for card in hand:
+                        if card.rank == i:
+                            self.rank_clue(j, i)
+                            return
 
         # Discard trash cards firstly.
         for card in cards:
@@ -640,7 +648,7 @@ class HanabiClient:
                       "type": ACTION.DISCARD.value,
                       "target": card_order,
                   },
-                  )
+        )
 
     def play_card(self, card_order):
         self.send("action",
@@ -649,7 +657,7 @@ class HanabiClient:
                       "type": ACTION.PLAY.value,
                       "target": card_order,
                   },
-                  )
+        )
 
     def remove_card_from_hand(self, state, player_index, order):
         hand = state.player_hands[player_index]

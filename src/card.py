@@ -36,10 +36,10 @@ class Card:
 
     def add_negative_info(self, clue: Clue):
         if clue.hint_type == 1:
-            if self.rank not in self.negative_ranks:
+            if clue.hint_value not in self.negative_ranks:
                 self.negative_ranks.append(clue.hint_value)
         elif clue.hint_type == 2:
-            if self.suit_index not in self.negative_colors:
+            if clue.hint_value not in self.negative_colors:
                 self.negative_colors.append(clue.hint_value)
 
         # reflect negative information if possible

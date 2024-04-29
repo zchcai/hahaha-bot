@@ -314,6 +314,46 @@ class TestDecideAction(unittest.TestCase):
         client.send.assert_called_once_with(
             'action',
             {'tableID': FAKE_TABLE_ID, 'type': ACTION.COLOR_CLUE.value, 'target': 1, 'value': 1})
+    
+    @patch('websocket.WebSocketApp')
+    def test_play_when_no_emergency(self, mock_websocketapp):
+        """Play when no emergency."""
+
+        mock_websocketapp.return_value = self.mock_ws_instance
+        state = get_default_game_state()
+        state.current_player_index = 0
+        state.our_player_index = 0
+        state.clue_tokens = 1
+        state.play_stacks = [4, 2, 0, 0, 3]
+        state.player_names = ['Alice', 'Bob']
+        state.player_hands = [
+            # Player 0 (self)
+            [
+                Card(order=0, rank=5, suit_index=4, clues=[
+                    Clue(hint_type=1, hint_value=5, classification=2, touched_orders=[0]),
+                    Clue(hint_type=2, hint_value=4, classification=2, touched_orders=[0, 3])]),  # discard slot
+                Card(order=1),
+                Card(order=2),
+                Card(order=3, suit_index=4, clues=[Clue(hint_type=2, hint_value=4, classification=1, touched_orders=[0, 3])]),
+                Card(order=4)   # draw slot
+            ],
+            # Player 1 (the next player)
+            [
+                Card(order=5, rank=4, suit_index=2),    # discard slot
+                Card(order=6, rank=2, suit_index=1),
+                Card(order=7, rank=5, suit_index=2),
+                Card(order=8, rank=4, suit_index=2),
+                Card(order=9, rank=2, suit_index=2),    # draw slot
+            ]
+        ]
+        client = get_default_client(state)
+        
+        client.decide_action(FAKE_TABLE_ID)
+
+        client.send.assert_called_once_with(
+            'action',
+            {'tableID': FAKE_TABLE_ID, 'type': ACTION.PLAY.value, 'target': 3}
+        )
 
 if __name__ == '__main__':
     unittest.main()

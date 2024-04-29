@@ -143,11 +143,16 @@ class GameState:
 
         # incomplete information
         clues = card.clues
+        finesses = card.finesses
         if len(clues) == 0:
             # No clue at all, then check finesse info.
-            return (card.finesse_color != -1
-            and card.finesse_rank != -1
-            and self.play_stacks[card.finesse_color] + 1 == card.finesse_rank)
+            if len(finesses) == 0:
+                # No finesse paths touched either, then not playable.
+                return False
+            else:
+                # TODO: finesse handling.
+                # Now if it is not empty, then it is playable.
+                return True
 
         # Firstly check the latest clue whether play or not.
         # If it never becomes a focus, don't play.

@@ -5,6 +5,7 @@ import copy
 from dataclasses import dataclass, field
 from src.clue import Clue
 from src.constants import MAX_RANK
+from src.finesse import Finesse
 
 @dataclass
 class Card:
@@ -17,13 +18,14 @@ class Card:
     # clue sequence
     clues: list = field(default_factory=list)
 
-    # finesse
-    finesse_color: int = -1
-    finesse_rank: int = -1
+    finesses: list = field(default_factory=list)
 
     # negative information
     negative_colors: list = field(default_factory=list)
     negative_ranks: list = field(default_factory=list)
+
+    def add_finesse(self, finesse: Finesse):
+        self.finesses.append(copy.copy(finesse))
 
     def add_clue(self, clue: Clue):
         self.clues.append(copy.copy(clue))

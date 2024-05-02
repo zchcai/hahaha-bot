@@ -28,6 +28,63 @@ class GameState:
     turn: int = -1
     current_player_index: int = -1
 
+    def critical_non_5_cards(self):
+        """Returns cards that are critical to save but not 5."""
+        critical_cards = []
+        if len(self.discard_pile) == 0:
+            return critical_cards
+
+        for discarded_card in self.discard_pile:
+            # Check each discarded card whether critical to save.
+            rank = discarded_card.rank
+            suit = discarded_card.suit_index
+
+            if rank == 5:
+                # only care about non-5 cards
+                continue
+
+            if self.play_stacks[suit] >= rank:
+                # already played
+                continue
+
+            # Firstly, check whether the other cards are also discarded.
+            if self.count_discarded(rank, suit) >= MAX_CARDS_PER_RANK[rank]:
+                continue
+
+            # Second, check whether this card can be played later.
+            can_be_played_later = True
+            for pending_rank in range(self.play_stacks[suit] + 1, rank):
+                if self.count_discarded(pending_rank, suit) >= MAX_CARDS_PER_RANK[pending_rank]:
+                    # This card cannot be played later.
+                    can_be_played_later = False
+
+            if not can_be_played_later:
+                continue
+
+            # Finally, whether this card is already seen in other players' hand.
+            if self.seen_in_hands(rank, suit):
+                continue
+
+            critical_cards.append(discarded_card)
+
+        return critical_cards
+
+    def seen_in_hands(self, rank, suit):
+        """Check whether this card is seen in other players' hand."""
+        for hand in self.player_hands:
+            for card in hand:
+                if card.rank == rank and card.suit_index == suit:
+                    return True
+        return False
+
+    def count_discarded(self, rank, suit):
+        """Count the number of cards discarded with the given rank and suit."""
+        count = 0
+        for card in self.discard_pile:
+            if card.rank == rank and card.suit_index == suit:
+                count += 1
+        return count
+
     def will_not_discard(self, player):
         for card in self.player_hands[player]:
             for clue in card.clues:
@@ -167,10 +224,10 @@ class GameState:
         if card.rank != -1:
             # no color information.
             # check whether it is a save.
-            for i in range(5):
-                if card.rank == self.play_stacks[i] + 1:
+            for suit in range(5):
+                if card.rank == self.play_stacks[suit] + 1:
                     # If the last clue is not play, then don't play it now.
-                    return clues[-1].classification == 2
+                    return False if clues[-1].classification == 2 else True
             # not possible to be playable.
             return False
 

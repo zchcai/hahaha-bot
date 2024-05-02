@@ -342,7 +342,10 @@ class HanabiClient:
 
             # Exception: special handling for 1s.
             if clue.hint_type == 1 and clue.hint_value == 1:
-                # all 1s are playable.
+                # All 1s are marked as playable firstly.
+                # If this is a trash clue, it will be corrected by calculating
+                # the potential slot.
+                # TODO: trash bluff is not implemented.
                 clue.classification = 1
                 for card in cards:
                     if card.order in clue.touched_orders:
@@ -354,43 +357,62 @@ class HanabiClient:
                 state.clue_tokens -= 1
                 return
 
-            # First, we need to see whether this is a save clue.
-            discard_slot = state.current_discard_slot(clue.receiver_index)
+            # Double clued cards will be analyzed several times.
             double_clued_cards = state.double_clued_cards(clue.receiver_index, clue)
 
-            if (discard_slot is not None and discard_slot.order in clue.touched_orders
-                and clue.hint_type == 1):
-                # The discard slot is touched!
+            # First, we need to see whether this is a Save Clue by checking
+            # whether touching the discard slot.
+            discard_slot = state.current_discard_slot(clue.receiver_index)
+
+            if (discard_slot is not None and
+                discard_slot.order in clue.touched_orders and
+                clue.hint_type == 1):
+                # The discard slot is touched by a rank clue!
+                # It is possible to be a Save Clue.
                 possible_save_mark = True
+                possible_save_suit = []
+
+                # Is it a non-5 critical save?
                 if clue.hint_value != 5:
                     possible_save_mark = False
-                    for discarded_card in state.discard_pile:
+                    for discarded_card in state.critical_non_5_cards():
                         if discarded_card.rank == clue.hint_value:
-                            # TODO: remove the dup situation.
                             # This is a critical save.
                             possible_save_mark = True
-                            break
-                if possible_save_mark:
-                    # check whether the left-most double clued card is playable.
-                    if len(double_clued_cards) > 0:
-                        focused_card = double_clued_cards[-1]
-                        if state.is_playable(focused_card):
-                            clue.classification = 1
-                            focused_card.add_clue(clue)
+                            possible_save_suit.append(discarded_card.suit_index)
 
+                # Now we know the touched discard slot is possible a save and its possible suits.
+                # However, maybe this is caused by a double-touch Play Clue.
+                if possible_save_mark:
+                    # Check whether any double touched card is **newly** playable.
+                    # If so, then we treat this as a Play Clue and mark all playable cards.
+                    play_clue_added_card_orders = []
+                    if len(double_clued_cards) > 0:
+                        for possible_playable_card in double_clued_cards:
+                            pending_focused_card = copy.deepcopy(possible_playable_card)
+                            pending_focused_card.add_clue(clue)
+                            if ((not state.is_playable(possible_playable_card)) and
+                                state.is_playable(pending_focused_card)):
+                                clue.classification = 1
+                                possible_playable_card.add_clue(clue)
+                                play_clue_added_card_orders.append(possible_playable_card.order)
+
+                        if len(play_clue_added_card_orders) > 0:
+                            # Some cards are marked now. It is a double-touch Play Clue.
                             # For all other cards, assign save mark.
                             clue.classification = 2
                             for card in cards:
                                 if card.order not in clue.touched_orders:
                                     card.add_negative_info(clue)
                                 else:
-                                    if card.order != focused_card.order:
+                                    if card.order not in play_clue_added_card_orders:
                                         card.add_clue(clue)
                             # Update game state: each clue costs one clue token.
                             state.clue_tokens -= 1
                             return
 
-                    # otherwise, all cards are marked as save.
+                    # Otherwise, this is a Save Clue.
+                    # All cards are marked as save and try to deduce the suit.
                     clue.classification = 2
                     for card in cards:
                         if card.order in clue.touched_orders:
@@ -398,30 +420,41 @@ class HanabiClient:
                         else:
                             card.add_negative_info(clue)
 
+                    if len(possible_save_suit) > 0:
+                        for i in range(5):
+                            if i not in possible_save_suit:
+                                discard_slot.add_negative_suit(i)
+
                     # Update game state: each clue costs one clue token.
                     state.clue_tokens -= 1
                     return
 
-            # TODO: finesse
-            # Second, determine the single focus of this play clue.
-            # if no double clued, then the focus is the left-most touched card.
-            play_focus_card_order = max(clue.touched_orders)
+            # It is a Play Clue now.
+            # The focus is default as the left-most touched card, however, we should check
+            # double-touched card firstly.
+            play_focus_card_order = []
 
+            # Exception: double clued newly playable cards.
             if len(double_clued_cards) > 0:
-                # one card is double clued.
-                # if this card is playable, then this is a play clue.
-                # otherwise, ignore it.
+                # Check whether any double touched card is **newly** playable.
+                # If so, then we adjust our focus to them, instead of the left-most touched card.
+                for possible_playable_card in double_clued_cards:
+                    pending_focused_card = copy.deepcopy(possible_playable_card)
+                    pending_focused_card.add_clue(clue)
+                    if ((not state.is_playable(possible_playable_card)) and
+                        state.is_playable(pending_focused_card)):
+                        clue.classification = 1
+                        possible_playable_card.add_clue(clue)
+                        play_focus_card_order.append(possible_playable_card.order)
 
-                # We want to make sure the newly playable card is the focus.
-                focused_card = double_clued_cards[-1]
-                pending_focused_card = copy.deepcopy(focused_card)
-                pending_focused_card.add_clue(clue)
-                if state.is_playable(pending_focused_card):
-                    play_focus_card_order = focused_card.order
+            # No newly playable card, and thus we mark the left-most touched card as the focus.
+            # TODO: need more tests on edge cases.
+            if len(play_focus_card_order) == 0:
+                play_focus_card_order.append(max(clue.touched_orders))
 
             for card in cards:
                 if card.order in clue.touched_orders:
-                    if card.order == play_focus_card_order:
+                    if card.order in play_focus_card_order:
                         clue.classification = 1
                     else:
                         clue.classification = 2
@@ -487,7 +520,9 @@ class HanabiClient:
                     continue
 
                 # We need to save them!
-                # TODO: we don't need to save them if they have playable cards to clue or they have cards to play now.
+                # TODO: we don't need to save them if:
+                # - they have playable cards to clue or
+                # - they have cards to play now.
                 if state.clue_tokens > 0:
                     self.rank_clue(player, discard_slot.rank)
                 else:

@@ -80,6 +80,29 @@ class TestHandleAction(unittest.TestCase):
 
 
     @patch('websocket.WebSocketApp')
+    def test_record_rank_clue_3s_at_discard_slot_as_save(self, mock_websocketapp):
+        """When save clue is given."""
+
+        mock_websocketapp.return_value = self.mock_ws_instance
+        state = get_default_game_state()
+        state.play_stacks = [2, 1, 2, 0, 0]
+        state.turn = 2
+        state.player_hands[0][0].add_clue(Clue(hint_type=2, hint_value=2, giver_index=1, receiver_index=0, classification=2, turn=0, touched_orders=[0, 4]))
+        state.player_hands[0][4].order = 10
+        state.discard_pile.append(Card(rank=3, suit_index=3))
+        state.current_player_index = 1
+        client = get_default_client(state)
+
+        data =  {'type': 'clue', 'clue': {'type': 1, 'value': 3}, 'giver': 1, 'list': [1], 'target': 0, 'turn': 2}
+        client.handle_action(data, FAKE_TABLE_ID)
+
+        dump(state.player_hands[0])
+        assert state.player_hands[0][1].clues[0].classification == 2
+        assert state.player_hands[0][1].rank == 3
+        assert state.player_hands[0][1].suit_index == 3
+
+
+    @patch('websocket.WebSocketApp')
     def test_record_rank_clue_1s_as_play(self, mock_websocketapp):
         """When play clue is given."""
 
@@ -145,6 +168,22 @@ class TestDecideAction(unittest.TestCase):
     # Setup: Create a MagicMock for the WebSocketApp instance.
     mock_ws_instance = MagicMock()
 
+    @patch('websocket.WebSocketApp')
+    def test_play_1s(self, mock_websocketapp):
+        """Play 1s."""
+        mock_websocketapp.return_value = self.mock_ws_instance
+        state = get_default_game_state()
+        state.clue_tokens = 7
+        state.turn = 1
+        state.player_hands[0][1].rank = 1
+        state.player_hands[0][1].clues = [Clue(hint_type=1, hint_value=1, giver_index=1, receiver_index=0, classification=1, turn=0, touched_orders=[1])]
+        client = get_default_client(state)
+
+        client.decide_action()
+
+        client.send.assert_called_once_with(
+            'action',
+            {'tableID': FAKE_TABLE_ID, 'type': ACTION.PLAY.value, 'target': 1})
 
     @patch('websocket.WebSocketApp')
     def test_play_card_when_no_emergency_but_with_playable_card_to_clue(self, mock_websocketapp):

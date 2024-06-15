@@ -13,6 +13,8 @@ class ACTION(Enum):
     COLOR_CLUE = auto()
     RANK_CLUE = auto()
 
+# The initial amount of boom tokens
+MAX_BOOM_NUM = 3
 
 # The maximum amount of clues (and the amount of clues that players start the
 # game with).

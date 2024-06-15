@@ -71,7 +71,7 @@ def get_default_client(game_state: GameState=None):
 class TestHandleAction(unittest.TestCase):
     """Class to test handle_action() function."""
     mock_ws_instance = MagicMock()
-    
+
     @patch('websocket.WebSocketApp')
     def test_basic_one_card_finesse(self, mock_websocketapp):
         """Basic finesse."""

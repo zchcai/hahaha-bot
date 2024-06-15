@@ -66,4 +66,3 @@ class Card:
             self.add_negative_rank(untouched_clue.hint_value)
         elif untouched_clue.hint_type == 2:
             self.add_negative_suit(untouched_clue.hint_value)
-

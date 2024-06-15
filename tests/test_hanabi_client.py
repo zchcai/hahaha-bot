@@ -312,7 +312,8 @@ class TestDecideAction(unittest.TestCase):
         state.clue_tokens = 0
         state.player_hands[0][1].rank = 5
         state.player_hands[0][1].suit_index = 3
-        state.discard_pile = [Card(order=10, rank=4, suit_index=3), Card(order=10, rank=4, suit_index=3)]
+        state.discard_pile = [Card(order=10, rank=4, suit_index=3),
+                              Card(order=10, rank=4, suit_index=3)]
         client = get_default_client(state)
 
         client.decide_action(FAKE_TABLE_ID)
@@ -353,7 +354,7 @@ class TestDecideAction(unittest.TestCase):
         client.send.assert_called_once_with(
             'action',
             {'tableID': FAKE_TABLE_ID, 'type': ACTION.COLOR_CLUE.value, 'target': 1, 'value': 1})
-    
+
     @patch('websocket.WebSocketApp')
     def test_play_when_no_emergency(self, mock_websocketapp):
         """Play when no emergency."""
@@ -373,7 +374,8 @@ class TestDecideAction(unittest.TestCase):
                     Clue(hint_type=2, hint_value=4, classification=2, touched_orders=[0, 3])]),  # discard slot
                 Card(order=1),
                 Card(order=2),
-                Card(order=3, suit_index=4, clues=[Clue(hint_type=2, hint_value=4, classification=1, touched_orders=[0, 3])]),
+                Card(order=3, suit_index=4, clues=[
+                    Clue(hint_type=2, hint_value=4, classification=1, touched_orders=[0, 3])]),
                 Card(order=4)   # draw slot
             ],
             # Player 1 (the next player)
@@ -386,7 +388,7 @@ class TestDecideAction(unittest.TestCase):
             ]
         ]
         client = get_default_client(state)
-        
+
         client.decide_action(FAKE_TABLE_ID)
 
         client.send.assert_called_once_with(

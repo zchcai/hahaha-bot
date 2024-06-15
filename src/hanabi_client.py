@@ -3,6 +3,7 @@
 # Imports (standard library)
 import copy
 import json
+import time
 
 # Imports (3rd-party)
 import websocket
@@ -67,7 +68,7 @@ class HanabiClient:
     # WebSocket Handlers
     # ------------------
 
-    def websocket_message(self, ws, message):
+    def websocket_message(self, _, message):
         """
         # WebSocket messages from the server come in the format of:
         # commandName {"fieldName":"value"}
@@ -99,13 +100,13 @@ class HanabiClient:
         else:
             printf('debug: ignoring command "' + command + '"')
 
-    def websocket_error(self, ws, error):
+    def websocket_error(self, _, error):
         printf("Encountered a WebSocket error:", error)
 
-    def websocket_close(self, ws):
+    def websocket_close(self, _):
         printf("WebSocket connection closed.")
 
-    def websocket_open(self, ws):
+    def websocket_open(self, _):
         printf("Successfully established WebSocket connection.")
 
     # --------------------------------
@@ -325,6 +326,8 @@ class HanabiClient:
             # and misplays do not grant a clue.
             if not data["failed"]:
                 state.clue_tokens += 1
+            else:
+                state.boom_tokens -= 1
 
         elif data["type"] == "clue":
             # Parse clue details.
@@ -508,6 +511,8 @@ class HanabiClient:
         num_cards = len(cards)
 
         # Decide what to do.
+        # Give human players some time to catch up live.
+        time.sleep(2)
         # TODO: first react to urgent situations.
 
         # Check if any players' discard slot needs to be saved.

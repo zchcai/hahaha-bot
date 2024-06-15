@@ -2,7 +2,7 @@
 from dataclasses import dataclass, field
 
 from src.card import Card
-from src.constants import MAX_CLUE_NUM, MAX_RANK, MAX_CARDS_PER_RANK
+from src.constants import MAX_BOOM_NUM, MAX_CLUE_NUM, MAX_RANK, MAX_CARDS_PER_RANK
 
 
 # This is just a reference. For a fully-fledged bot, the game state would need
@@ -13,20 +13,26 @@ from src.constants import MAX_CLUE_NUM, MAX_RANK, MAX_CARDS_PER_RANK
 class GameState:
     """The game state from our own view."""
 
-    replaying_past_actions: bool = True
+    """Ground truth information."""
     clue_tokens: int = MAX_CLUE_NUM
+    boom_tokens: int = MAX_BOOM_NUM
+    turn: int = -1
+
     player_names: list = field(default_factory=list)
     our_player_index: int = -1
+    current_player_index: int = -1
 
-    # Cards in different players' hands (i.e., 2D array of Card objects).
-    player_hands: list = field(default_factory=list)
-
-    # An array of suits' rank (i.e., 1D array).
+    # An array of suits' rank (i.e., 1D array of int).
     play_stacks: list = field(default_factory=list)
+
+    # An array of discarded cards (i.e., 1D array of Card objects).
     discard_pile: list = field(default_factory=list)
 
-    turn: int = -1
-    current_player_index: int = -1
+    """Mixed information."""
+    # Cards in different players' hands (i.e., 2D array of Card objects).
+    # For "our_player_index", it means "what we think" of our hand.
+    # For other players, it means "what we think they think" of their hands.
+    player_hands: list = field(default_factory=list)
 
     def critical_non_5_cards(self):
         """Returns cards that are critical to save but not 5."""

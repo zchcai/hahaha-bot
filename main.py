@@ -114,11 +114,17 @@ def main():
     # Otherwise, multi-threads.
     for arg in sys.argv:
         if arg.endswith("main.py"):
-            threading.Thread(daemon=True, target=HanabiClient, args=(ws_url, get_cookies_by_password(url, username, password))).start()
+            threading.Thread(daemon=True,
+                             target=HanabiClient,
+                             args=(ws_url,
+                                   get_cookies_by_password(url, username, password))).start()
         else:
             # Assume using the same string for a robot's password and username.
-            threading.Thread(daemon=True, target=HanabiClient, args=(ws_url, get_cookies_by_password(url, arg, arg))).start()
-    while(True):
+            threading.Thread(daemon=True,
+                             target=HanabiClient,
+                             args=(ws_url,
+                                   get_cookies_by_password(url, arg, arg))).start()
+    while True:
         # Wait for keyboardIntereption
         time.sleep(5)
 

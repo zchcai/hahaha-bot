@@ -28,6 +28,12 @@ class GameState:
     # An array of discarded cards (i.e., 1D array of Card objects).
     discard_pile: list = field(default_factory=list)
 
+    """Mutually shared information."""
+    # A map between card order (unique No.) to its colors or/and ranks.
+    # When private views get conflict with mutually shared information, private views must be wrong.
+    clued_colors: dict = field(default_factory=dict)
+    clued_ranks: dict = field(default_factory=dict)
+
     """Mixed information."""
     # Cards in different players' hands (i.e., 2D array of Card objects).
     # For "our_player_index", it means "what we think" of our hand.

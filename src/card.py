@@ -14,10 +14,24 @@ class Card:
     order: int = -1
     rank: int = -1
     suit_index: int = -1
+    owner_index: int = -1
 
-    # clue sequence
+    # status
+    # 0 - nothing/unclued/untouched
+    # 1 - implicit unclued saved (useful, i.e., garbage clue at another card)
+    # 2 - good touch saved (touched, useful, passive save)
+    # 3 - explicit saved (touched, active save)
+    # 4 - unclued finessed (untouched, actionable)
+    # 5 - clued finessed (touched, actionable)
+    # 6 - playable (immediately actionable)
+    # (more status)
+    # -1 - trash/useless
+    status: int = 0
+
+    # clues sequence
     clues: list = field(default_factory=list)
 
+    # possible finesses sequence
     finesses: list = field(default_factory=list)
 
     # negative information

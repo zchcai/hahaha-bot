@@ -286,6 +286,20 @@ class HanabiClient:
         if state.current_player_index == state.our_player_index:
             self.decide_action(data["tableID"])
 
+    def database_id(self, data):
+        # Games are transformed into shared replays after they are completed.
+        # The server sends a "databaseID" message when the game has ended. Use
+        # this as a signal to leave the shared replay.
+        self.send(
+            "tableUnattend",
+            {
+                "tableID": data["tableID"],
+            },
+        )
+
+        # Delete the game state for the game to free up memory.
+        del self.games[data["tableID"]]
+
     def handle_action(self, data, table_id):
         printf(f"debug: 'gameAction' of '{data['type']}' for table {table_id}")
         printf(f"debug: \t\t{data}")
@@ -299,6 +313,27 @@ class HanabiClient:
                     order=data["order"],
                     suit_index=data["suitIndex"],
                     rank=data["rank"]))
+
+        elif data["type"] == "turn":
+            # A turn is comprised of one or more game actions (e.g. play +
+            # draw). The turn action will be the final thing sent on a turn,
+            # which also includes the index of the new current player.
+            # TODO: This action may be removed from the server in the future
+            # since the client is expected to calculate the turn on its own
+            # from the actions.
+            state.turn = data["num"]
+            state.current_player_index = data["currentPlayerIndex"]
+
+        # --------------------------------------
+        # AI logic or functions from this point.
+        #
+        # Every convention needs 2 main parts to implement: giving and receiving clues.
+        #
+        # For each turn, there will be execution-evaluation loops:
+        # 1. Action predication based on mutually shared information and private views.
+        # 2a. Other people's turn: Compare the real action and predicated one.
+        # 2b. Our own turn: Compare the outcome and our assumption.
+        # --------------------------------------
 
         elif data["type"] == "play":
             # This is a successful play.
@@ -469,34 +504,6 @@ class HanabiClient:
             state.clue_tokens -= 1
             return
 
-        elif data["type"] == "turn":
-            # A turn is comprised of one or more game actions (e.g. play +
-            # draw). The turn action will be the final thing sent on a turn,
-            # which also includes the index of the new current player.
-            # TODO: This action may be removed from the server in the future
-            # since the client is expected to calculate the turn on its own
-            # from the actions.
-            state.turn = data["num"]
-            state.current_player_index = data["currentPlayerIndex"]
-
-    def database_id(self, data):
-        # Games are transformed into shared replays after they are completed.
-        # The server sends a "databaseID" message when the game has ended. Use
-        # this as a signal to leave the shared replay.
-        self.send(
-            "tableUnattend",
-            {
-                "tableID": data["tableID"],
-            },
-        )
-
-        # Delete the game state for the game to free up memory.
-        del self.games[data["tableID"]]
-
-    # ------------
-    # AI functions
-    # ------------
-
     def decide_action(self, table_id=None):
         """The main logic to determine actions to do."""
 
@@ -513,7 +520,9 @@ class HanabiClient:
         # Decide what to do.
         # Give human players some time to catch up live.
         time.sleep(2)
-        # TODO: first react to urgent situations.
+        # TODO: correct any immediately required private views. For example, this includes:
+        # 1. bluff reaction (i.e., false finesse annotation)
+        # 2. Critical card save (i.e., useful signal or save clues)
 
         # Check if any players' discard slot needs to be saved.
         for player in range(len(state.player_hands)):

@@ -28,3 +28,16 @@ This repo will implement a mainly [rule-based](https://docs.google.com/document/
 ### [Live Test Coverage](https://jasonstitt.com/perfect-python-live-test-coverage)
 - Run `pip3 install pytest-watch` and open a terminal to run `pytest-watch`. It will automatically check the unit test code coverage when files get changed.
 - (Optional) If using VS Code, then install [Coverage Gutters](https://marketplace.visualstudio.com/items?itemName=ryanluker.vscode-coverage-gutters) and run `Coverage Gutters: Watch`. It will read the auto-updated `lcov.info` file and update the coverage lines accordingly.
+
+### Debugging UI setup (remote)
+- Follow https://github.com/Hanabi-Live/hanabi-live/blob/main/docs/install.md#installation-for-developmentproduction-linux.
+- Change `.env` with the server public IP address.
+- Backup: `pg_dump -U hanabiuser -d hanabi -f backup.sql`
+- Restore: `psql -U hanabiuser -d hanabi < backup.sql`
+
+#### Postgres Trouble shooting
+- We might need to change `pg_hda.conf` by replacing `peer` with `md5` for `local` users group (for 'hanabiuser').
+  ```sh
+  sudo vim /etc/postgresql/16/main/pg_hba.conf
+  sudo systemctl restart postgresql
+  ```

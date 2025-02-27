@@ -16,16 +16,18 @@ class GameState:
     """Ground truth information."""
     clue_tokens: int = MAX_CLUE_NUM
     boom_tokens: int = MAX_BOOM_NUM
-    turn: int = -1
+    num_suits: int = 5 # default as no variant
+
+    # An array of original action (i.e., 1D array of Action objects).
+    action_history: list = field(default_factory=list)
 
     player_names: list = field(default_factory=list)
     our_player_index: int = -1
-    current_player_index: int = -1
 
-    # An array of suits' rank (i.e., 1D array of int).
-    play_stacks: list = field(default_factory=list)
-
+    # An array of played cards (i.e., 1D array of Card objects).
+    play_pile: list = field(default_factory=list)
     # An array of discarded cards (i.e., 1D array of Card objects).
+    # It also contains the boomed cards.
     discard_pile: list = field(default_factory=list)
 
     """Mutually shared information."""
@@ -39,6 +41,9 @@ class GameState:
     # For "our_player_index", it means "what we think" of our hand.
     # For other players, it means "what we think they think" of their hands.
     player_hands: list = field(default_factory=list)
+
+    def current_player_index(self):
+        return len(self.action_history) % len(self.player_names)
 
     def critical_non_5_cards(self):
         """Returns cards that are critical to save but not 5."""
@@ -55,7 +60,7 @@ class GameState:
                 # only care about non-5 cards
                 continue
 
-            if self.play_stacks[suit] >= rank:
+            if self.play_stacks()[suit] >= rank:
                 # already played
                 continue
 
@@ -65,7 +70,7 @@ class GameState:
 
             # Second, check whether this card can be played later.
             can_be_played_later = True
-            for pending_rank in range(self.play_stacks[suit] + 1, rank):
+            for pending_rank in range(self.play_stacks()[suit] + 1, rank):
                 if self.count_discarded(pending_rank, suit) >= MAX_CARDS_PER_RANK[pending_rank]:
                     # This card cannot be played later.
                     can_be_played_later = False
@@ -130,19 +135,19 @@ class GameState:
                 if i in card.negative_colors:
                     # skip impossible color
                     continue
-                if self.play_stacks[i] < card.rank:
+                if self.play_stacks()[i] < card.rank:
                     return False
             return True
 
         # Hinted or deduced to know the color.
         if card.suit_index != -1 and card.rank == -1:
             # It is a trash if this color is completed.
-            if self.play_stacks[card.suit_index] == MAX_RANK:
+            if self.play_stacks()[card.suit_index] == MAX_RANK:
                 return True
 
             # It is a trash if the next number is discarded already.
             count = 0
-            next_rank = 1 + self.play_stacks[card.suit_index]
+            next_rank = 1 + self.play_stacks()[card.suit_index]
             for discard in self.discard_pile:
                 if discard.suit_index == card.suit_index and discard.rank == next_rank:
                     count += 1
@@ -172,7 +177,7 @@ class GameState:
             return True
 
         # Is this card already played?
-        if self.play_stacks[card.suit_index] >= card.rank:
+        if self.play_stacks()[card.suit_index] >= card.rank:
             return True
         # If no cards have been discarded, it is not a trash.
         if len(self.discard_pile) == 0:
@@ -201,6 +206,12 @@ class GameState:
             if discarded_card.rank == card.rank and discarded_card.suit_index == card.suit_index:
                 return True
         return False
+    
+    def play_stacks(self):
+        stacks = [0] * self.num_suits
+        for card in self.play_pile:
+            stacks[card.suit_index] = max(card.rank, stacks[card.suit_index])
+        return stacks
 
     # TODO: good touch principle
     def is_playable(self, card: Card):
@@ -208,7 +219,7 @@ class GameState:
             return False
 
         if card.suit_index != -1 and card.rank != -1:
-            return self.play_stacks[card.suit_index] + 1 == card.rank
+            return self.play_stacks()[card.suit_index] + 1 == card.rank
 
         # incomplete information
         clues = card.clues
@@ -237,7 +248,7 @@ class GameState:
             # no color information.
             # check whether it is a save.
             for suit in range(5):
-                if card.rank == self.play_stacks[suit] + 1:
+                if card.rank == self.play_stacks()[suit] + 1:
                     # If the last clue is not play, then don't play it now.
                     return False if clues[-1].classification == 2 else True
             # not possible to be playable.

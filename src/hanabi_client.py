@@ -9,6 +9,7 @@ import time
 import websocket
 
 # Imports (local application)
+from src.action import Action
 from src.card import Card
 from src.clue import Clue
 from src.constants import ACTION
@@ -237,9 +238,7 @@ class HanabiClient:
         file in order to determine the correct amount of suits
         https://raw.githubusercontent.com/Zamiell/hanabi-live/master/public/js/src/data/variants.json
         """
-        num_suits = 5
-        for _ in range(num_suits):
-            state.play_stacks.append(0)
+        state.num_suits = 5
 
         # At this point, the JavaScript client would have enough information to
         # load and display the game UI. For our purposes, we do not need to
@@ -257,11 +256,11 @@ class HanabiClient:
         state = self.games[data["tableID"]]
 
         # We just received a new action for an ongoing game.
-        pre_turn = state.turn
+        pre_turn = len(state.action_history)
         self.handle_action(data["action"], data["tableID"])
-        post_turn = state.turn
+        post_turn = len(state.action_history)
 
-        if post_turn != pre_turn and state.current_player_index == state.our_player_index:
+        if post_turn != pre_turn and state.current_player_index() == state.our_player_index:
             self.decide_action(data["tableID"])
 
     def game_action_list(self, data):
@@ -283,7 +282,7 @@ class HanabiClient:
         )
 
         # Start the game if we are the first player.
-        if state.current_player_index == state.our_player_index:
+        if state.current_player_index() == state.our_player_index:
             self.decide_action(data["tableID"])
 
     def database_id(self, data):
@@ -314,16 +313,6 @@ class HanabiClient:
                     suit_index=data["suitIndex"],
                     rank=data["rank"]))
 
-        elif data["type"] == "turn":
-            # A turn is comprised of one or more game actions (e.g. play +
-            # draw). The turn action will be the final thing sent on a turn,
-            # which also includes the index of the new current player.
-            # TODO: This action may be removed from the server in the future
-            # since the client is expected to calculate the turn on its own
-            # from the actions.
-            state.turn = data["num"]
-            state.current_player_index = data["currentPlayerIndex"]
-
         # --------------------------------------
         # AI logic or functions from this point.
         #
@@ -340,32 +329,56 @@ class HanabiClient:
             # A boom will be classified as a discard.
             player_index = data["playerIndex"]
             order = data["order"]
-            played_suit_index = data["suitIndex"]
-            played_rank = data["rank"]
             card = self.remove_card_from_hand(state, player_index, order)
-            if card is not None:
-                # TODO: check expectation.
-                state.play_stacks[played_suit_index] = played_rank
+            # Record the real value of this card.
+            card.rank = data["rank"]
+            card.suit_index = data["suitIndex"]
+            state.play_pile.append(card)
+            state.action_history.append(
+                Action(
+                    action_type=1,
+                    player_index=player_index,
+                    card=card,
+                )
+            )
+
+            # TODO: post-analysis
 
         elif data["type"] == "discard":
             player_index = data["playerIndex"]
             order = data["order"]
             card = self.remove_card_from_hand(state, player_index, order)
-            if card is not None:
-                # TODO: check expectation, especially at a boom.
-                card.rank = data["rank"]
-                card.suit_index = data["suitIndex"]
-                state.discard_pile.append(card)
+            # Record the real value of this card.
+            card.rank = data["rank"]
+            card.suit_index = data["suitIndex"]
+            state.discard_pile.append(card)
 
             # Discarding adds a clue. But misplays are represented as discards,
             # and misplays do not grant a clue.
             if not data["failed"]:
                 state.clue_tokens += 1
+                state.action_history.append(
+                    Action(
+                        action_type=2, # normal discard
+                        player_index=player_index,
+                        card=card
+                    )
+                )
             else:
                 state.boom_tokens -= 1
+                state.action_history.append(
+                    Action(
+                        action_type=1, # boom
+                        player_index=player_index,
+                        card=card,
+                        boom=True
+                    )
+                )
+            # TODO: post-analysis
 
         elif data["type"] == "clue":
             # Parse clue details.
+            # TODO: distinguish others' rounds or mine.
             clue = Clue(
                 hint_type=1 if data["clue"]["type"] == 1 else 2,
                 hint_value=data["clue"]["value"],
@@ -373,6 +386,13 @@ class HanabiClient:
                 receiver_index=data["target"],
                 turn=data["turn"],
                 touched_orders=data["list"]
+            )
+            state.action_history.append(
+                Action(
+                    action_type=3, # clue
+                    player_index=clue.giver_index,
+                    clue=clue,
+                )
             )
 
             # Add clue into touched cards.

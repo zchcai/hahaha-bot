@@ -21,7 +21,6 @@ def get_default_game_state():
     state.current_player_index = 0
     state.our_player_index = 0
     state.clue_tokens = 8
-    state.play_stacks = [0, 0, 0, 0, 0]
     state.player_names = ['Alice', 'Bob', 'Charles', 'David']
     # https://hanab.live/replay/1124590#1
     # (This is my first online game :)
@@ -31,7 +30,7 @@ def get_default_game_state():
             Card(order=0),  # discard slot
             Card(order=1),
             Card(order=2),
-            Card(order=3)   # draw slot
+            Card(order=3),  # draw slot
         ],
         # Player 1
         [

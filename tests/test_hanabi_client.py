@@ -21,7 +21,6 @@ def get_default_game_state():
     state.current_player_index = 0
     state.our_player_index = 0
     state.clue_tokens = 8
-    state.play_stacks = [0, 0, 0, 0, 0]
     state.player_names = ['Alice', 'Bob']
     state.player_hands = [
         # Player 0 (self)
@@ -30,7 +29,7 @@ def get_default_game_state():
             Card(order=1),
             Card(order=2),
             Card(order=3),
-            Card(order=4)   # draw slot
+            Card(order=4),  # draw slot
         ],
         # Player 1 (the next player)
         [
@@ -65,14 +64,22 @@ class TestHandleAction(unittest.TestCase):
 
         mock_websocketapp.return_value = self.mock_ws_instance
         state = get_default_game_state()
-        state.play_stacks = [0, 1, 0, 0, 0]
-        state.turn = 2
-        state.player_hands[0][0].add_clue(Clue(hint_type=2, hint_value=1, giver_index=1, receiver_index=0, classification=2, turn=0, touched_orders=[0, 4]))
+        state.play_pile = [Card(rank=1, suit_index=1)]
+        state.player_hands[0][0].add_clue(
+            Clue(hint_type=2, hint_value=1, giver_index=1, receiver_index=0, classification=2,
+                 turn=0, touched_orders=[0, 4]))
         state.player_hands[0][4].order = 10
         state.current_player_index = 1
         client = get_default_client(state)
 
-        data =  {'type': 'clue', 'clue': {'type': 1, 'value': 5}, 'giver': 1, 'list': [1], 'target': 0, 'turn': 2}
+        data =  {
+            'type': 'clue', 
+            'clue': {'type': 1, 'value': 5}, 
+            'giver': 1, 
+            'list': [1], 
+            'target': 0, 
+            'turn': 2
+        }
         client.handle_action(data, FAKE_TABLE_ID)
 
         dump(state.player_hands[0])
@@ -85,15 +92,30 @@ class TestHandleAction(unittest.TestCase):
 
         mock_websocketapp.return_value = self.mock_ws_instance
         state = get_default_game_state()
-        state.play_stacks = [2, 1, 2, 0, 0]
+        state.play_pile = [
+            Card(rank=1, suit_index=0),
+            Card(rank=2, suit_index=0),
+            Card(rank=1, suit_index=1),
+            Card(rank=1, suit_index=2),
+            Card(rank=2, suit_index=2),
+        ]
         state.turn = 2
-        state.player_hands[0][0].add_clue(Clue(hint_type=2, hint_value=2, giver_index=1, receiver_index=0, classification=2, turn=0, touched_orders=[0, 4]))
+        state.player_hands[0][0].add_clue(
+            Clue(hint_type=2, hint_value=2, giver_index=1, receiver_index=0, classification=2,
+                 turn=0, touched_orders=[0, 4]))
         state.player_hands[0][4].order = 10
         state.discard_pile.append(Card(rank=3, suit_index=3))
         state.current_player_index = 1
         client = get_default_client(state)
 
-        data =  {'type': 'clue', 'clue': {'type': 1, 'value': 3}, 'giver': 1, 'list': [1], 'target': 0, 'turn': 2}
+        data =  {
+            'type': 'clue', 
+            'clue': {'type': 1, 'value': 3}, 
+            'giver': 1, 
+            'list': [1], 
+            'target': 0, 
+            'turn': 2
+        }
         client.handle_action(data, FAKE_TABLE_ID)
 
         dump(state.player_hands[0])
@@ -108,15 +130,19 @@ class TestHandleAction(unittest.TestCase):
 
         mock_websocketapp.return_value = self.mock_ws_instance
         state = get_default_game_state()
-        state.play_stacks = [0, 0, 0, 0, 0]
         state.current_player_index = 1
         client = get_default_client(state)
 
-        data =  {'type': 'clue', 'clue': {'type': 1, 'value': 1}, 'giver': 1, 'list': [1, 3], 'target': 0, 'turn': 0}
+        data =  {'type': 'clue', 'clue': {'type': 1, 'value': 1}, 'giver': 1, 'list': [1, 3], 
+                 'target': 0, 'turn': 0}
         client.handle_action(data, FAKE_TABLE_ID)
 
-        assert state.player_hands[0][1].clues == [Clue(hint_type=1, hint_value=1, giver_index=1, receiver_index=0, classification=1, turn=0, touched_orders=[1, 3])]
-        assert state.player_hands[0][3].clues == [Clue(hint_type=1, hint_value=1, giver_index=1, receiver_index=0, classification=1, turn=0, touched_orders=[1, 3])]
+        assert state.player_hands[0][1].clues == [
+            Clue(hint_type=1, hint_value=1, giver_index=1, receiver_index=0, classification=1, 
+                 turn=0, touched_orders=[1, 3])]
+        assert state.player_hands[0][3].clues == [
+            Clue(hint_type=1, hint_value=1, giver_index=1, receiver_index=0, classification=1,
+                 turn=0, touched_orders=[1, 3])]
 
 
     @patch('websocket.WebSocketApp')
@@ -125,18 +151,26 @@ class TestHandleAction(unittest.TestCase):
 
         mock_websocketapp.return_value = self.mock_ws_instance
         state = get_default_game_state()
-        state.play_stacks = [1, 2, 1, 0, 0]
+        state.play_pile = [Card(rank=1, suit_index=0),
+            Card(rank=1, suit_index=1),
+            Card(rank=2, suit_index=1),
+            Card(rank=1, suit_index=2)]
         state.current_player_index = 1
         state.clue_tokens = 3
         state.turn = 10
-        state.player_hands[0][0].add_clue(Clue(hint_type=2, hint_value=1, classification=2, touched_orders=[0]))
-        state.player_hands[0][1].add_clue(Clue(hint_type=2, hint_value=0, classification=2, touched_orders=[1]))
-        state.player_hands[0][2].add_clue(Clue(hint_type=2, hint_value=1, classification=2, touched_orders=[2]))
-        state.player_hands[0][3].add_clue(Clue(hint_type=2, hint_value=0, classification=2, touched_orders=[3]))
+        state.player_hands[0][0].add_clue(
+            Clue(hint_type=2, hint_value=1, classification=2, touched_orders=[0]))
+        state.player_hands[0][1].add_clue(
+            Clue(hint_type=2, hint_value=0, classification=2, touched_orders=[1]))
+        state.player_hands[0][2].add_clue(
+            Clue(hint_type=2, hint_value=1, classification=2, touched_orders=[2]))
+        state.player_hands[0][3].add_clue(
+            Clue(hint_type=2, hint_value=0, classification=2, touched_orders=[3]))
 
         client = get_default_client(state)
 
-        data =  {'type': 'clue', 'clue': {'type': 1, 'value': 3}, 'giver': 1, 'list': [1, 2], 'target': 0, 'turn': 10}
+        data =  {'type': 'clue', 'clue': {'type': 1, 'value': 3}, 'giver': 1, 'list': [1, 2],
+                 'target': 0, 'turn': 10}
         client.handle_action(data, FAKE_TABLE_ID)
 
         assert state.is_playable(state.player_hands[0][2])
@@ -155,11 +189,16 @@ class TestHandleAction(unittest.TestCase):
         state.current_player_index = 1
         client = get_default_client(state)
 
-        data =  {'type': 'clue', 'clue': {'type': 0, 'value': 1}, 'giver': 1, 'list': [0, 3], 'target': 0, 'turn': 0}
+        data =  {'type': 'clue', 'clue': {'type': 0, 'value': 1}, 'giver': 1, 'list': [0, 3], 
+                 'target': 0, 'turn': 0}
         client.handle_action(data, FAKE_TABLE_ID)
 
-        assert state.player_hands[0][3].clues == [Clue(hint_type=2, hint_value=1, giver_index=1, receiver_index=0, classification=1, turn=0, touched_orders=[0, 3])]
-        assert state.player_hands[0][0].clues == [Clue(hint_type=2, hint_value=1, giver_index=1, receiver_index=0, classification=2, turn=0, touched_orders=[0, 3])]
+        assert state.player_hands[0][3].clues == [
+            Clue(hint_type=2, hint_value=1, giver_index=1, receiver_index=0, classification=1,
+                 turn=0, touched_orders=[0, 3])]
+        assert state.player_hands[0][0].clues == [
+            Clue(hint_type=2, hint_value=1, giver_index=1, receiver_index=0, classification=2, 
+                 turn=0, touched_orders=[0, 3])]
 
 
 # Test class.
@@ -176,7 +215,9 @@ class TestDecideAction(unittest.TestCase):
         state.clue_tokens = 7
         state.turn = 1
         state.player_hands[0][1].rank = 1
-        state.player_hands[0][1].clues = [Clue(hint_type=1, hint_value=1, giver_index=1, receiver_index=0, classification=1, turn=0, touched_orders=[1])]
+        state.player_hands[0][1].clues = [
+            Clue(hint_type=1, hint_value=1, giver_index=1, receiver_index=0, classification=1,
+                 turn=0, touched_orders=[1])]
         client = get_default_client(state)
 
         client.decide_action()
@@ -191,16 +232,27 @@ class TestDecideAction(unittest.TestCase):
 
         mock_websocketapp.return_value = self.mock_ws_instance
         state = get_default_game_state()
-        state.play_stacks = [1, 2, 1, 0, 0]
+        state.play_pile = [
+            Card(rank=1, suit_index=0),
+            Card(rank=1, suit_index=1),
+            Card(rank=2, suit_index=1),
+            Card(rank=1, suit_index=2),
+        ]
         state.current_player_index = 0
         state.clue_tokens = 3
         state.turn = 11
-        state.player_hands[0][0].add_clue(Clue(hint_type=2, hint_value=1, classification=2, touched_orders=[0]))
-        state.player_hands[0][1].add_clue(Clue(hint_type=2, hint_value=0, classification=2, touched_orders=[1]))
-        state.player_hands[0][1].add_clue(Clue(hint_type=1, hint_value=3, classification=2, touched_orders=[1, 2]))
-        state.player_hands[0][2].add_clue(Clue(hint_type=2, hint_value=1, classification=2, touched_orders=[2]))
-        state.player_hands[0][2].add_clue(Clue(hint_type=1, hint_value=3, classification=1, touched_orders=[1, 2]))
-        state.player_hands[0][3].add_clue(Clue(hint_type=2, hint_value=0, classification=2, touched_orders=[3]))
+        state.player_hands[0][0].add_clue(
+            Clue(hint_type=2, hint_value=1, classification=2, touched_orders=[0]))
+        state.player_hands[0][1].add_clue(
+            Clue(hint_type=2, hint_value=0, classification=2, touched_orders=[1]))
+        state.player_hands[0][1].add_clue(
+            Clue(hint_type=1, hint_value=3, classification=2, touched_orders=[1, 2]))
+        state.player_hands[0][2].add_clue(
+            Clue(hint_type=2, hint_value=1, classification=2, touched_orders=[2]))
+        state.player_hands[0][2].add_clue(
+            Clue(hint_type=1, hint_value=3, classification=1, touched_orders=[1, 2]))
+        state.player_hands[0][3].add_clue(
+            Clue(hint_type=2, hint_value=0, classification=2, touched_orders=[3]))
 
         state.player_hands[1][3].rank = 2
         state.player_hands[1][3].suit_index = 0
@@ -219,7 +271,7 @@ class TestDecideAction(unittest.TestCase):
 
         mock_websocketapp.return_value = self.mock_ws_instance
         state = get_default_game_state()
-        state.play_stacks = [0, 0, 0, 1, 1]
+        state.play_piles = [Card(rank=1, suit_index=3), Card(rank=1, suit_index=4)]
         # Their discard slot needs to be saved.
         state.player_hands[1][0].rank = 5
         # They have a play.
@@ -240,7 +292,7 @@ class TestDecideAction(unittest.TestCase):
 
         mock_websocketapp.return_value = self.mock_ws_instance
         state = get_default_game_state()
-        state.play_stacks = [0, 0, 0, 1, 1]
+        state.play_pile = [Card(rank=1, suit_index=4), Card(rank=1, suit_index=3)]
         # Their discard slot needs to be saved.
         state.player_hands[1][0].rank = 5
         # We have a play.
@@ -259,7 +311,7 @@ class TestDecideAction(unittest.TestCase):
 
         mock_websocketapp.return_value = self.mock_ws_instance
         state = get_default_game_state()
-        state.play_stacks = [0, 0, 0, 0, 1]
+        state.play_pile = [Card(rank=1, suit_index=4)]
         state.player_hands[0][1].clues = [Clue(hint_type=2, hint_value=3, classification=1)]
         client = get_default_client(state)
 
@@ -275,7 +327,13 @@ class TestDecideAction(unittest.TestCase):
 
         mock_websocketapp.return_value = self.mock_ws_instance
         state = get_default_game_state()
-        state.play_stacks = [0, 1, 1, 2, 1]
+        state.play_pile = [
+            Card(rank=1, suit_index=1),
+            Card(rank=1, suit_index=2),
+            Card(rank=1, suit_index=3),
+            Card(rank=2, suit_index=3),
+            Card(rank=1, suit_index=4),
+        ]
         for i in range(2, 6):
             state.player_hands[0][0].add_negative_info(Clue(hint_type=1, hint_value=i))
         for i in range(1, 5):
@@ -330,7 +388,28 @@ class TestDecideAction(unittest.TestCase):
         mock_websocketapp.return_value = self.mock_ws_instance
         state = get_default_game_state()
         state.clue_tokens = 0
-        state.play_stacks = [5, 5, 2, 3, 4]
+        # [5, 5, 2, 3, 4]
+        state.play_pile = [
+            Card(rank=1, suit_index=0),
+            Card(rank=2, suit_index=0),
+            Card(rank=3, suit_index=0),
+            Card(rank=4, suit_index=0),
+            Card(rank=5, suit_index=0),
+            Card(rank=1, suit_index=1),
+            Card(rank=2, suit_index=1),
+            Card(rank=3, suit_index=1),
+            Card(rank=4, suit_index=1),
+            Card(rank=5, suit_index=1),
+            Card(rank=1, suit_index=2),
+            Card(rank=2, suit_index=2),
+            Card(rank=1, suit_index=3),
+            Card(rank=2, suit_index=3),
+            Card(rank=3, suit_index=3),
+            Card(rank=1, suit_index=4),
+            Card(rank=2, suit_index=4),
+            Card(rank=3, suit_index=4),
+            Card(rank=4, suit_index=4),
+        ]
         state.player_hands[0][2].rank = 2
         client = get_default_client(state)
 
@@ -364,7 +443,17 @@ class TestDecideAction(unittest.TestCase):
         state.current_player_index = 0
         state.our_player_index = 0
         state.clue_tokens = 1
-        state.play_stacks = [4, 2, 0, 0, 3]
+        state.play_pile = [
+            Card(rank=1, suit_index=0),
+            Card(rank=2, suit_index=0),
+            Card(rank=3, suit_index=0),
+            Card(rank=4, suit_index=0),
+            Card(rank=1, suit_index=1),
+            Card(rank=2, suit_index=1),
+            Card(rank=1, suit_index=4),
+            Card(rank=2, suit_index=4),
+            Card(rank=3, suit_index=4),
+        ]
         state.player_names = ['Alice', 'Bob']
         state.player_hands = [
             # Player 0 (self)

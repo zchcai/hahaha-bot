@@ -11,7 +11,7 @@ from src.finesse import Finesse
 class Card:
     """Card information at one player's hand."""
     # basic information
-    order: int = -1
+    order: int = -1 # unique No. for each card
     rank: int = -1
     suit_index: int = -1
     owner_index: int = -1

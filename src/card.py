@@ -4,7 +4,7 @@ import copy
 
 from dataclasses import dataclass, field
 from src.clue import Clue
-from src.constants import MAX_RANK
+from src.constants import ACTION, MAX_RANK
 from src.finesse import Finesse
 
 @dataclass
@@ -43,9 +43,9 @@ class Card:
 
     def add_clue(self, clue: Clue):
         self.clues.append(copy.copy(clue))
-        if clue.hint_type == 1:
+        if clue.hint_type == ACTION.RANK_CLUE.value:
             self.rank = clue.hint_value
-        elif clue.hint_type == 2:
+        elif clue.hint_type == ACTION.COLOR_CLUE.value:
             self.suit_index = clue.hint_value
 
         # TODO: fineese info
@@ -76,7 +76,7 @@ class Card:
 
     def add_negative_info(self, untouched_clue: Clue):
         """"Add negative information from a untouched clue."""
-        if untouched_clue.hint_type == 1:
+        if untouched_clue.hint_type == ACTION.RANK_CLUE.value:
             self.add_negative_rank(untouched_clue.hint_value)
-        elif untouched_clue.hint_type == 2:
+        elif untouched_clue.hint_type == ACTION.COLOR_CLUE.value:
             self.add_negative_suit(untouched_clue.hint_value)

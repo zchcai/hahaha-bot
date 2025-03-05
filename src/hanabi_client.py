@@ -3,7 +3,6 @@
 # Imports (standard library)
 import copy
 import json
-import time
 
 # Imports (3rd-party)
 import websocket
@@ -336,7 +335,7 @@ class HanabiClient:
             state.play_pile.append(card)
             state.action_history.append(
                 Action(
-                    action_type=1,
+                    action_type=ACTION.PLAY.value,
                     player_index=player_index,
                     card=card,
                 )
@@ -359,7 +358,7 @@ class HanabiClient:
                 state.clue_tokens += 1
                 state.action_history.append(
                     Action(
-                        action_type=2, # normal discard
+                        action_type=ACTION.DISCARD.value,
                         player_index=player_index,
                         card=card
                     )
@@ -368,7 +367,7 @@ class HanabiClient:
                 state.boom_tokens -= 1
                 state.action_history.append(
                     Action(
-                        action_type=1, # boom
+                        action_type=ACTION.PLAY.value,
                         player_index=player_index,
                         card=card,
                         boom=True
@@ -380,7 +379,7 @@ class HanabiClient:
             # Parse clue details.
             # TODO: distinguish others' rounds or mine.
             clue = Clue(
-                hint_type=1 if data["clue"]["type"] == 1 else 2,
+                hint_type=ACTION.COLOR_CLUE.value if data["clue"]["type"] % ACTION.COLOR_CLUE.value == 0 else ACTION.RANK_CLUE.value,
                 hint_value=data["clue"]["value"],
                 giver_index=data["giver"],
                 receiver_index=data["target"],
@@ -389,7 +388,7 @@ class HanabiClient:
             )
             state.action_history.append(
                 Action(
-                    action_type=3, # clue
+                    action_type=clue.hint_type,
                     player_index=clue.giver_index,
                     clue=clue,
                 )
@@ -399,7 +398,7 @@ class HanabiClient:
             cards = state.player_hands[clue.receiver_index]
 
             # Exception: special handling for 1s.
-            if clue.hint_type == 1 and clue.hint_value == 1:
+            if clue.hint_type == ACTION.RANK_CLUE.value and clue.hint_value == 1:
                 # All 1s are marked as playable firstly.
                 # If this is a trash clue, it will be corrected by calculating
                 # the potential slot.
@@ -424,7 +423,7 @@ class HanabiClient:
 
             if (discard_slot is not None and
                 discard_slot.order in clue.touched_orders and
-                clue.hint_type == 1):
+                clue.hint_type == ACTION.RANK_CLUE.value):
                 # The discard slot is touched by a rank clue!
                 # It is possible to be a Save Clue.
                 possible_save_mark = True
@@ -531,149 +530,13 @@ class HanabiClient:
             table_id = self.current_table_id
         state = self.games[table_id]
 
-        # The server expects to be told about actions in the following format:
-        # https://github.com/Hanabi-Live/hanabi-live/blob/main/server/src/command_action.go
-
-        cards = state.player_hands[state.our_player_index]
-        num_cards = len(cards)
-
-        # Decide what to do.
-        # Give human players some time to catch up live.
-        time.sleep(2)
-        # TODO: correct any immediately required private views. For example, this includes:
-        # 1. bluff reaction (i.e., false finesse annotation)
-        # 2. Critical card save (i.e., useful signal or save clues)
-
-        # Check if any players' discard slot needs to be saved.
-        for player in range(len(state.player_hands)):
-            if player == state.our_player_index:
-                continue
-            discard_slot = state.current_discard_slot(player)
-            if discard_slot is not None and state.is_critical(discard_slot):
-                if state.will_not_discard(player):
-                    continue
-
-                # We need to save them!
-                # TODO: we don't need to save them if:
-                # - they have playable cards to clue or
-                # - they have cards to play now.
-                if state.clue_tokens > 0:
-                    self.rank_clue(player, discard_slot.rank)
-                else:
-                    # Be creative!
-                    my_discard_slot = state.current_discard_slot(state.our_player_index)
-                    if my_discard_slot is not None:
-                        self.discard_card(my_discard_slot.order)
-                    else:
-                        self.play_card(cards[-1].order)
-                return
-
-        # Play cards if possible.
-        for i in range(num_cards):
-            # From draw slot to discard slot
-            card = cards[num_cards - i - 1]
-            if state.is_playable(card):
-                self.play_card(card.order)
-                return
-
-        # Discard when neither a play nor a clue.
-        if state.clue_tokens <= 0:
-            state.clue_tokens = 0
-            self.try_discard(cards)
-            return
-
-        # TODO: don't clue already clued cards.
-        # Try to clue immediate playable cards by color clue or rank clue.
-        # First, search all playable candidates.
-        num_players = len(state.player_names)
-        immediate_playable_cards_per_player = []
-        for player in range(num_players):
-            immediate_playable_cards_per_player.append([])
-            if player == state.our_player_index:
-                continue
-            for card in state.player_hands[player]:
-                if state.is_playable(card):
-                    immediate_playable_cards_per_player[player].append(card)
-            if len(immediate_playable_cards_per_player[player]) == 0:
-                # no immediate playable card for this player
-                continue
-
-            # Second, check each candidate one by one.
-            for playable_card in immediate_playable_cards_per_player[player]:
-                target_color = playable_card.suit_index
-                target_rank = playable_card.rank
-
-                # Is it already been clued or not?
-                if len(playable_card.clues) > 0:
-                    # Is it given a play clue?
-                    if playable_card.clues[-1].classification == 1:
-                        continue
-                    # Otherwise, we just double clue it with different clue.
-                    if playable_card.clues[-1].hint_type == 1:
-                        self.color_clue(player, target_color)
-                    else:
-                        self.rank_clue(player, target_rank)
-                    return
-
-                # Can we give color clue or rank clue?
-                can_give_color_clue = True
-                can_give_rank_clue = True
-                # First check whether there is any card left to it.
-                for i in range(num_cards):
-                    potential_touched_card = state.player_hands[player][i]
-                    if potential_touched_card.suit_index == target_color:
-                        # if the order is larger, it means it is left to it.
-                        if potential_touched_card.order > playable_card.order:
-                            can_give_color_clue = False
-                    if potential_touched_card.rank == target_rank:
-                        if potential_touched_card.order > playable_card.order:
-                            can_give_rank_clue = False
-
-                # For playable cards, color clue is better than rank clue.
-                if can_give_color_clue:
-                    self.color_clue(player, target_color)
-                    return
-                if can_give_rank_clue:
-                    self.rank_clue(player, target_rank)
-                    return
-
-        # Nothing we can do, so discard.
-        self.try_discard(cards)
-        return
+        action = state.decide_action()
+        self.perform_action(action)
+        
 
     # -----------
     # Subroutines
     # -----------
-
-    def try_discard(self, cards):
-        state = self.games[self.current_table_id]
-
-        if state.clue_tokens == MAX_CLUE_NUM:
-            # The idea is to give highly possible trash 1s or save 5s.
-            for i in [1, 5, 2, 3, 4]:
-                for j, hand in enumerate(state.player_hands):
-                    if j == state.our_player_index:
-                        continue
-                    for card in hand:
-                        if card.rank == i:
-                            self.rank_clue(j, i)
-                            return
-
-        # Discard trash cards firstly.
-        for card in cards:
-            if self.games[self.current_table_id].is_trash(card):
-                self.discard_card(card.order)
-                return
-
-        # Then oldest unclued card.
-        for card in cards:
-            if len(card.clues) == 0:
-                self.discard_card(card.order)
-                return
-
-        self.play_card(cards[-1].order)
-        return
-
     def chat_reply(self, message, recipient):
         self.send(
             "chatPM",
@@ -727,6 +590,17 @@ class HanabiClient:
                       "target": card_order,
                   },
         )
+    
+    def perform_action(self, action: Action):
+        if action.action_type == ACTION.PLAY.value:
+            self.play_card(action.card.order)
+        elif action.action_type == ACTION.DISCARD.value:
+            self.discard_card(action.card.order)
+        else:
+            if action.clue.hint_type == ACTION.COLOR_CLUE.value:
+              self.color_clue(action.clue.receiver_index, action.clue.hint_value)
+            else:
+              self.rank_clue(action.clue.receiver_index, action.clue.hint_value)  
 
     def remove_card_from_hand(self, state, player_index, order):
         hand = state.player_hands[player_index]

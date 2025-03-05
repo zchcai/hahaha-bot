@@ -66,7 +66,7 @@ class TestHandleAction(unittest.TestCase):
         state = get_default_game_state()
         state.play_pile = [Card(rank=1, suit_index=1)]
         state.player_hands[0][0].add_clue(
-            Clue(hint_type=2, hint_value=1, giver_index=1, receiver_index=0, classification=2,
+            Clue(hint_type=ACTION.COLOR_CLUE.value, hint_value=1, giver_index=1, receiver_index=0, classification=2,
                  turn=0, touched_orders=[0, 4]))
         state.player_hands[0][4].order = 10
         state.current_player_index = 1
@@ -101,7 +101,7 @@ class TestHandleAction(unittest.TestCase):
         ]
         state.turn = 2
         state.player_hands[0][0].add_clue(
-            Clue(hint_type=2, hint_value=2, giver_index=1, receiver_index=0, classification=2,
+            Clue(hint_type=ACTION.COLOR_CLUE.value, hint_value=2, giver_index=1, receiver_index=0, classification=2,
                  turn=0, touched_orders=[0, 4]))
         state.player_hands[0][4].order = 10
         state.discard_pile.append(Card(rank=3, suit_index=3))
@@ -110,7 +110,7 @@ class TestHandleAction(unittest.TestCase):
 
         data =  {
             'type': 'clue', 
-            'clue': {'type': 1, 'value': 3}, 
+            'clue': {'type': 1, 'value': 3},    # rank clue
             'giver': 1, 
             'list': [1], 
             'target': 0, 
@@ -138,10 +138,10 @@ class TestHandleAction(unittest.TestCase):
         client.handle_action(data, FAKE_TABLE_ID)
 
         assert state.player_hands[0][1].clues == [
-            Clue(hint_type=1, hint_value=1, giver_index=1, receiver_index=0, classification=1, 
+            Clue(hint_type=ACTION.RANK_CLUE.value, hint_value=1, giver_index=1, receiver_index=0, classification=1, 
                  turn=0, touched_orders=[1, 3])]
         assert state.player_hands[0][3].clues == [
-            Clue(hint_type=1, hint_value=1, giver_index=1, receiver_index=0, classification=1,
+            Clue(hint_type=ACTION.RANK_CLUE.value, hint_value=1, giver_index=1, receiver_index=0, classification=1,
                  turn=0, touched_orders=[1, 3])]
 
 
@@ -189,7 +189,7 @@ class TestHandleAction(unittest.TestCase):
         state.current_player_index = 1
         client = get_default_client(state)
 
-        data =  {'type': 'clue', 'clue': {'type': 0, 'value': 1}, 'giver': 1, 'list': [0, 3], 
+        data =  {'type': 'clue', 'clue': {'type': ACTION.COLOR_CLUE.value, 'value': 1}, 'giver': 1, 'list': [0, 3], 
                  'target': 0, 'turn': 0}
         client.handle_action(data, FAKE_TABLE_ID)
 
@@ -216,7 +216,7 @@ class TestDecideAction(unittest.TestCase):
         state.turn = 1
         state.player_hands[0][1].rank = 1
         state.player_hands[0][1].clues = [
-            Clue(hint_type=1, hint_value=1, giver_index=1, receiver_index=0, classification=1,
+            Clue(hint_type=ACTION.RANK_CLUE.value, hint_value=1, giver_index=1, receiver_index=0, classification=1,
                  turn=0, touched_orders=[1])]
         client = get_default_client(state)
 
@@ -335,9 +335,9 @@ class TestDecideAction(unittest.TestCase):
             Card(rank=1, suit_index=4),
         ]
         for i in range(2, 6):
-            state.player_hands[0][0].add_negative_info(Clue(hint_type=1, hint_value=i))
+            state.player_hands[0][0].add_negative_info(Clue(hint_type=ACTION.RANK_CLUE.value, hint_value=i))
         for i in range(1, 5):
-            state.player_hands[0][0].add_negative_info(Clue(hint_type=2, hint_value=i))
+            state.player_hands[0][0].add_negative_info(Clue(hint_type=ACTION.COLOR_CLUE.value, hint_value=i))
         client = get_default_client(state)
 
         client.decide_action(FAKE_TABLE_ID)
@@ -459,12 +459,12 @@ class TestDecideAction(unittest.TestCase):
             # Player 0 (self)
             [
                 Card(order=0, rank=5, suit_index=4, clues=[
-                    Clue(hint_type=1, hint_value=5, classification=2, touched_orders=[0]),
-                    Clue(hint_type=2, hint_value=4, classification=2, touched_orders=[0, 3])]),  # discard slot
+                    Clue(hint_type=ACTION.RANK_CLUE.value, hint_value=5, classification=2, touched_orders=[0]),
+                    Clue(hint_type=ACTION.COLOR_CLUE.value, hint_value=4, classification=2, touched_orders=[0, 3])]),  # discard slot
                 Card(order=1),
                 Card(order=2),
                 Card(order=3, suit_index=4, clues=[
-                    Clue(hint_type=2, hint_value=4, classification=1, touched_orders=[0, 3])]),
+                    Clue(hint_type=ACTION.COLOR_CLUE.value, hint_value=4, classification=1, touched_orders=[0, 3])]),
                 Card(order=4)   # draw slot
             ],
             # Player 1 (the next player)

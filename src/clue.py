@@ -9,7 +9,7 @@ class Clue:
     """The basic information for a clue."""
 
     # basic information
-    hint_type: int = -1     # 1 - rank, 2 - color
+    hint_type: int = -1     # 3 - rank, 2 - color
     hint_value: int = -1    # suit_index (color) or rank
 
     # players infomation

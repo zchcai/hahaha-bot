@@ -1,4 +1,5 @@
-"""The game snapshot of a moment."""
+"""The table of a game with our player index."""
+import copy
 import time
 
 from dataclasses import dataclass, field
@@ -7,6 +8,8 @@ from src.action import Action
 from src.card import Card
 from src.clue import Clue
 from src.constants import ACTION, MAX_BOOM_NUM, MAX_CLUE_NUM, MAX_RANK, MAX_CARDS_PER_RANK
+from src.snapshot import Snapshot
+from src.utils import printf, dump
 
 
 # This is just a reference. For a fully-fledged bot, the game state would need
@@ -14,8 +17,8 @@ from src.constants import ACTION, MAX_BOOM_NUM, MAX_CLUE_NUM, MAX_RANK, MAX_CARD
 # and negative clues that are "on" the card.)
 # pylint: disable=too-few-public-methods
 @dataclass
-class GameState:
-    """The game state from our own view."""
+class Game:
+    """The game from our view."""
 
     """Ground truth information."""
     clue_tokens: int = MAX_CLUE_NUM
@@ -44,11 +47,238 @@ class GameState:
 
     # The index of the player who is us.
     our_player_index: int = -1
+
     # An array of game snapshot history (i.e., 1D array of Snapshot objects).
     snapshot_history: list = field(default_factory=list)
+
     # An array of original action (i.e., 1D array of Action objects).
+    # It also contains drawing actions.
     action_history: list = field(default_factory=list)
 
+    def take_initial_snapshot(self):
+        self.snapshot_history.append(Snapshot(
+            clue_tokens=self.clue_tokens,
+            boom_tokens=self.boom_tokens,
+            num_suits=self.num_suits,
+            num_players=self.num_players,
+            play_pile=self.play_pile.copy(),
+            discard_pile=self.discard_pile.copy(),
+            hands=[hand.copy() for hand in self.hands],
+            snapshot_history=self.snapshot_history.copy(),
+            action_history=self.action_history.copy()))
+
+    def handle_action(self, action: Action):
+        if action.action_type == ACTION.DRAW.value:
+            # Draw action in the beginning is not recorded.
+            self.handle_draw(action)
+        elif action.action_type == ACTION.PLAY.value:
+            if action.boom:
+                self.handle_boom(action)
+            else:
+                self.handle_play(action)
+        elif action.action_type == ACTION.DISCARD.value:
+            self.handle_discard(action)
+        elif action.action_type == ACTION.COLOR_CLUE.value or action.action_type == ACTION.RANK_CLUE.value:
+            self.handle_clue(action)
+                
+        if len(self.snapshot_history) > 0 and action.action_type != ACTION.DRAW.value:
+            self.snapshot_history.append(self.snapshot_history[-1].next_snapshot(action))
+
+    # --------------------------------------
+    # AI logic or functions from this point.
+    #
+    # Every convention needs 2 main parts to implement: giving and receiving clues.
+    #
+    # For each turn, there will be execution-evaluation loops:
+    # 1. Action predication based on mutually shared information and private views.
+    # 2a. Other people's turn: Compare the real action and predicated one.
+    # 2b. Our own turn: Compare the outcome and our assumption.
+    # --------------------------------------
+    
+    def handle_draw(self, action: Action):
+        # self.snapshot_history[-1].hands[action.player_index].append(action.card)
+        self.player_hands[action.player_index].append(action.card)
+        self.action_history.append(action)
+        if len(self.action_history) == self.num_players * 5:
+            # All players have drawn their cards.
+            # Now we need to decide our action.
+            self.take_initial_snapshot()
+
+    def handle_play(self, action: Action):
+        # TODO: pre-/post- analysis.
+
+        # Extract the copy from the player's hand after removal.
+        card = self.remove_card_from_hand(action.player_index, action.card.order)
+        # Record the real value of this card.
+        card.rank = action.card.rank
+        card.suit_index = action.card.suit_index
+        self.play_pile.append(card)
+        # Record this action in history with the updated card information.
+        action.card = card
+        self.action_history.append(action)
+    
+    def handle_discard(self, action: Action):
+        # TODO: pre-/post- analysis.
+
+        # Extract the copy from the player's hand after removal.
+        card = self.remove_card_from_hand(action.player_index, action.card.order)
+        # Record the real value of this card.
+        card.rank = action.card.rank
+        card.suit_index = action.card.suit_index
+        self.discard_pile.append(card)
+        # Record this action in history with the updated card information.
+        action.card = card
+        self.clue_tokens += 1
+        self.action_history.append(action)
+        
+    def handle_boom(self, action: Action):
+        # TODO: pre-/post- analysis.
+
+        # Extract the copy from the player's hand after removal.
+        card = self.remove_card_from_hand(action.player_index, action.card.order)
+        # Record the real value of this card.
+        card.rank = action.card.rank
+        card.suit_index = action.card.suit_index
+        self.discard_pile.append(card)
+        # Record this action in history with the updated card information.
+        action.card = card
+        self.boom_tokens -= 1
+        self.action_history.append(action)
+    
+    def handle_clue(self, action: Action):
+        # Add clue into touched cards.
+        clue = action.clue
+        cards = self.player_hands[clue.receiver_index]
+
+        # Exception: special handling for 1s.
+        if clue.hint_type == ACTION.RANK_CLUE.value and clue.hint_value == 1:
+            # All 1s are marked as playable firstly.
+            # If this is a trash clue, it will be corrected by calculating
+            # the potential slot.
+            # TODO: trash bluff is not implemented.
+            clue.classification = 1
+            for card in cards:
+                if card.order in clue.touched_orders:
+                    card.add_clue(clue)
+                else:
+                    card.add_negative_info(clue)
+
+            # Update game state: each clue costs one clue token.
+            self.clue_tokens -= 1
+            self.action_history.append(action)
+            return
+
+        # Double clued cards will be analyzed several times.
+        double_clued_cards = self.double_clued_cards(clue.receiver_index, clue)
+
+        # First, we need to see whether this is a Save Clue by checking
+        # whether touching the discard slot.
+        discard_slot = self.current_discard_slot(clue.receiver_index)
+
+        if (discard_slot is not None and
+            discard_slot.order in clue.touched_orders and
+            clue.hint_type == ACTION.RANK_CLUE.value):
+            # The discard slot is touched by a rank clue!
+            # It is possible to be a Save Clue.
+            possible_save_mark = True
+            possible_save_suit = []
+
+            # Is it a non-5 critical save?
+            if clue.hint_value != 5:
+                possible_save_mark = False
+                for discarded_card in self.critical_non_5_cards():
+                    if discarded_card.rank == clue.hint_value:
+                        # This is a critical save.
+                        possible_save_mark = True
+                        possible_save_suit.append(discarded_card.suit_index)
+
+            # Now we know the touched discard slot is possible a save and its possible suits.
+            # However, maybe this is caused by a double-touch Play Clue.
+            if possible_save_mark:
+                # Check whether any double touched card is **newly** playable.
+                # If so, then we treat this as a Play Clue and mark all playable cards.
+                play_clue_added_card_orders = []
+                if len(double_clued_cards) > 0:
+                    for possible_playable_card in double_clued_cards:
+                        pending_focused_card = copy.deepcopy(possible_playable_card)
+                        pending_focused_card.add_clue(clue)
+                        if ((not self.is_playable(possible_playable_card)) and
+                            self.is_playable(pending_focused_card)):
+                            clue.classification = 1
+                            possible_playable_card.add_clue(clue)
+                            play_clue_added_card_orders.append(possible_playable_card.order)
+
+                    if len(play_clue_added_card_orders) > 0:
+                        # Some cards are marked now. It is a double-touch Play Clue.
+                        # For all other cards, assign save mark.
+                        clue.classification = 2
+                        for card in cards:
+                            if card.order not in clue.touched_orders:
+                                card.add_negative_info(clue)
+                            else:
+                                if card.order not in play_clue_added_card_orders:
+                                    card.add_clue(clue)
+                        # Update game state: each clue costs one clue token.
+                        self.clue_tokens -= 1
+                        self.action_history.append(action)
+                        return
+
+                # Otherwise, this is a Save Clue.
+                # All cards are marked as save and try to deduce the suit.
+                clue.classification = 2
+                for card in cards:
+                    if card.order in clue.touched_orders:
+                        card.add_clue(clue)
+                    else:
+                        card.add_negative_info(clue)
+
+                if len(possible_save_suit) > 0:
+                    for i in range(5):
+                        if i not in possible_save_suit:
+                            discard_slot.add_negative_suit(i)
+
+                # Update game state: each clue costs one clue token.
+                self.clue_tokens -= 1
+                self.action_history.append(action)
+                return
+
+        # It is a Play Clue now.
+        # The focus is default as the left-most touched card, however, we should check
+        # double-touched card firstly.
+        play_focus_card_order = []
+
+        # Exception: double clued newly playable cards.
+        if len(double_clued_cards) > 0:
+            # Check whether any double touched card is **newly** playable.
+            # If so, then we adjust our focus to them, instead of the left-most touched card.
+            for possible_playable_card in double_clued_cards:
+                pending_focused_card = copy.deepcopy(possible_playable_card)
+                pending_focused_card.add_clue(clue)
+                if ((not self.is_playable(possible_playable_card)) and
+                    self.is_playable(pending_focused_card)):
+                    clue.classification = 1
+                    possible_playable_card.add_clue(clue)
+                    play_focus_card_order.append(possible_playable_card.order)
+
+        # No newly playable card, and thus we mark the left-most touched card as the focus.
+        # TODO: need more tests on edge cases.
+        if len(play_focus_card_order) == 0:
+            play_focus_card_order.append(max(clue.touched_orders))
+
+        for card in cards:
+            if card.order in clue.touched_orders:
+                if card.order in play_focus_card_order:
+                    clue.classification = 1
+                else:
+                    clue.classification = 2
+                card.add_clue(clue)
+            else: # append negative information
+                card.add_negative_info(clue)
+
+        # Update game state: each clue costs one clue token.
+        self.clue_tokens -= 1
+        self.action_history.append(action)
+        return
     
     def decide_action(self):
         """The main logic to determine actions to do."""
@@ -61,7 +291,7 @@ class GameState:
 
         # Decide what to do.
         # Give human players some time to catch up live.
-        time.sleep(2)
+        # time.sleep(2)
         # TODO: correct any immediately required private views. For example, this includes:
         # 1. bluff reaction (i.e., false finesse annotation)
         # 2. Critical card save (i.e., useful signal or save clues)
@@ -190,7 +420,11 @@ class GameState:
         return Action(action_type=ACTION.PLAY.value, card=cards[-1], player_index=self.our_player_index)
 
     def current_player_index(self):
-        return len(self.action_history) % len(self.player_names)
+        turns = 0
+        for action in self.action_history:
+            if action.action_type != ACTION.DRAW.value:
+                turns += 1
+        return turns % len(self.player_names)
 
     def critical_non_5_cards(self):
         """Returns cards that are critical to save but not 5."""
@@ -338,6 +572,26 @@ class GameState:
             if num_discarded == MAX_CARDS_PER_RANK[i]:
                 return True
         return False
+
+    def remove_card_from_hand(self, player_index, order):
+        hand = self.player_hands[player_index]
+
+        card_index = -1
+        for i, card in enumerate(hand):
+            if card.order == order:
+                card_index = i
+                break
+
+        if card_index == -1:
+            printf(
+                "error: unable to find card with order " + str(order) + " in"
+                "the hand of player " + str(player_index)
+            )
+            return None
+
+        card = copy.deepcopy(hand[card_index])
+        del hand[card_index]
+        return card
 
     def is_critical(self, card: Card):
         if self.is_trash(card):

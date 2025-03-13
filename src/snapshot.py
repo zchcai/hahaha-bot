@@ -66,11 +66,13 @@ class Snapshot:
         return next_snapshot
     
     def perform_action(self, action: Action):
-        if action.action_type == 1:
+        if action.action_type == Action.PLAY.value:
+            if action.boom:
+                self.perform_boom(action)
             self.perform_play(action)
-        elif action.action_type == 2:
+        elif action.action_type == Action.DISCARD.value:
             self.perform_discard(action)
-        elif action.action_type == 3:
+        elif action.action_type == Action.COLOR_CLUE.value or action.action_type == Action.RANK_CLUE.value:
             self.perform_clue(action)
 
     def perform_play(self, action: Action):
@@ -84,10 +86,15 @@ class Snapshot:
         card = action.card
         self.hands[action.player_index].remove(card)
         self.discard_pile.append(card)
-        if action.boom:
-            self.boom_tokens -= 1
-        else:
-            self.clue_tokens += 1
+        self.clue_tokens += 1
+        if action.next_card is not None:
+            self.hands[action.player_index].append(action.next_card)
+    
+    def perform_boom(self, action: Action):
+        card = action.card
+        self.hands[action.player_index].remove(card)
+        self.boom_tokens -= 1
+        self.discard_pile.append(action.card)
         if action.next_card is not None:
             self.hands[action.player_index].append(action.next_card)
     

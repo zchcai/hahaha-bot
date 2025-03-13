@@ -8,8 +8,8 @@ from unittest.mock import patch, MagicMock
 from src.card import Card
 from src.clue import Clue
 from src.constants import ACTION
+from src.game import Game
 from src.hanabi_client import HanabiClient
-from src.game_state import GameState
 from src.utils import dump
 
 # Fake helpful constants.
@@ -17,7 +17,7 @@ FAKE_TABLE_ID = 42
 
 # Helper functions
 def get_default_game_state():
-    state = GameState()
+    state = Game()
     state.current_player_index = 0
     state.our_player_index = 0
     state.clue_tokens = 8
@@ -42,7 +42,7 @@ def get_default_game_state():
     ]
     return state
 
-def get_default_client(game_state: GameState=None):
+def get_default_client(game_state: Game=None):
     client = HanabiClient("some_uri", "some_cookie")
     client.current_table_id = FAKE_TABLE_ID
     if game_state is None:
@@ -185,7 +185,7 @@ class TestHandleAction(unittest.TestCase):
 
         mock_websocketapp.return_value = self.mock_ws_instance
         state = get_default_game_state()
-        state.play_stacks = [0, 0, 0, 0, 1]
+        state.play_pile = [Card(rank=1, suit_index=4)]
         state.current_player_index = 1
         client = get_default_client(state)
 

@@ -12,6 +12,7 @@ class ACTION(Enum):
     DISCARD = auto()
     COLOR_CLUE = auto()
     RANK_CLUE = auto()
+    DRAW = 11
 
 # The initial amount of boom tokens. When it reaches to 0, game ends with failure.
 MAX_BOOM_NUM = 3

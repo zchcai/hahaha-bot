@@ -12,7 +12,7 @@ from src.action import Action
 from src.card import Card
 from src.clue import Clue
 from src.constants import ACTION
-from src.game_state import GameState
+from src.game import Game
 from src.utils import printf, dump
 from src.constants import MAX_CLUE_NUM
 
@@ -219,25 +219,25 @@ class HanabiClient:
         # at the table.
 
         # Make a new game state and store it on the "games" dictionary.
-        state = GameState()
-        self.games[data["tableID"]] = state
+        game = Game()
+        self.games[data["tableID"]] = game
 
-        state.player_names = data["playerNames"]
-        state.our_player_index = data["ourPlayerIndex"]
+        game.player_names = data["playerNames"]
+        game.our_player_index = data["ourPlayerIndex"]
 
         # Initialize the hands for each player (an array of Cards).
-        for _ in range(len(state.player_names)):
-            state.player_hands.append([])
+        for _ in range(len(game.player_names)):
+            game.player_hands.append([])
 
         # Initialize the play stacks.
-        """
-        This is hard coded to 5 because there 5 suits in a no variant game
-        The website supports variants that have 3, 4, and 6 suits
-        TODO This code should compare "data['variant']" to the "variants.json"
-        file in order to determine the correct amount of suits
-        https://raw.githubusercontent.com/Zamiell/hanabi-live/master/public/js/src/data/variants.json
-        """
-        state.num_suits = 5
+        # https://raw.githubusercontent.com/Hanabi-Live/hanabi-live/refs/heads/main/packages/game/src/json/variants.json
+        # No Variants:      0
+        # Black (6 suits):  2
+        if data["variant"]["id"] == 0:
+            game.num_suits = 5 
+        else:
+            printf("error: Variant not supported: " + data["variant"])
+            NotImplementedError("Variant not supported")
 
         # At this point, the JavaScript client would have enough information to
         # load and display the game UI. For our purposes, we do not need to
@@ -252,18 +252,18 @@ class HanabiClient:
         )
 
     def game_action(self, data):
-        state = self.games[data["tableID"]]
+        game = self.games[data["tableID"]]
 
         # We just received a new action for an ongoing game.
-        pre_turn = len(state.action_history)
+        pre_turn = len(game.action_history)
         self.handle_action(data["action"], data["tableID"])
-        post_turn = len(state.action_history)
+        post_turn = len(game.action_history)
 
-        if post_turn != pre_turn and state.current_player_index() == state.our_player_index:
+        if post_turn != pre_turn and game.current_player_index() == game.our_player_index:
             self.decide_action(data["tableID"])
 
     def game_action_list(self, data):
-        state = self.games[data["tableID"]]
+        game = self.games[data["tableID"]]
 
         # We just received a list of all of the actions that have occurred thus
         # far in the game.
@@ -281,7 +281,7 @@ class HanabiClient:
         )
 
         # Start the game if we are the first player.
-        if state.current_player_index() == state.our_player_index:
+        if game.current_player_index() == game.our_player_index:
             self.decide_action(data["tableID"])
 
     def database_id(self, data):
@@ -301,237 +301,55 @@ class HanabiClient:
     def handle_action(self, data, table_id):
         printf(f"debug: 'gameAction' of '{data['type']}' for table {table_id}")
         printf(f"debug: \t\t{data}")
-
-        state = self.games[table_id]
-
-        if data["type"] == "draw":
-            # Add the newly drawn card to the player's hand.
-            state.player_hands[data["playerIndex"]].append(
-                Card(
-                    order=data["order"],
-                    suit_index=data["suitIndex"],
-                    rank=data["rank"]))
-
-        # --------------------------------------
-        # AI logic or functions from this point.
-        #
-        # Every convention needs 2 main parts to implement: giving and receiving clues.
-        #
-        # For each turn, there will be execution-evaluation loops:
-        # 1. Action predication based on mutually shared information and private views.
-        # 2a. Other people's turn: Compare the real action and predicated one.
-        # 2b. Our own turn: Compare the outcome and our assumption.
-        # --------------------------------------
-
-        elif data["type"] == "play":
-            # This is a successful play.
-            # A boom will be classified as a discard.
-            player_index = data["playerIndex"]
-            order = data["order"]
-            card = self.remove_card_from_hand(state, player_index, order)
-            # Record the real value of this card.
-            card.rank = data["rank"]
-            card.suit_index = data["suitIndex"]
-            state.play_pile.append(card)
-            state.action_history.append(
-                Action(
-                    action_type=ACTION.PLAY.value,
-                    player_index=player_index,
-                    card=card,
-                )
-            )
-
-            # TODO: post-analysis
-
-        elif data["type"] == "discard":
-            player_index = data["playerIndex"]
-            order = data["order"]
-            card = self.remove_card_from_hand(state, player_index, order)
-            # Record the real value of this card.
-            card.rank = data["rank"]
-            card.suit_index = data["suitIndex"]
-            state.discard_pile.append(card)
-
-            # Discarding adds a clue. But misplays are represented as discards,
-            # and misplays do not grant a clue.
-            if not data["failed"]:
-                state.clue_tokens += 1
-                state.action_history.append(
-                    Action(
-                        action_type=ACTION.DISCARD.value,
-                        player_index=player_index,
-                        card=card
-                    )
-                )
-            else:
-                state.boom_tokens -= 1
-                state.action_history.append(
-                    Action(
-                        action_type=ACTION.PLAY.value,
-                        player_index=player_index,
-                        card=card,
-                        boom=True
-                    )
-                )
-            # TODO: post-analysis
-
-        elif data["type"] == "clue":
-            # Parse clue details.
-            # TODO: distinguish others' rounds or mine.
-            clue = Clue(
-                hint_type=ACTION.COLOR_CLUE.value if data["clue"]["type"] % ACTION.COLOR_CLUE.value == 0 else ACTION.RANK_CLUE.value,
-                hint_value=data["clue"]["value"],
-                giver_index=data["giver"],
-                receiver_index=data["target"],
-                turn=data["turn"],
-                touched_orders=data["list"]
-            )
-            state.action_history.append(
-                Action(
-                    action_type=clue.hint_type,
-                    player_index=clue.giver_index,
-                    clue=clue,
-                )
-            )
-
-            # Add clue into touched cards.
-            cards = state.player_hands[clue.receiver_index]
-
-            # Exception: special handling for 1s.
-            if clue.hint_type == ACTION.RANK_CLUE.value and clue.hint_value == 1:
-                # All 1s are marked as playable firstly.
-                # If this is a trash clue, it will be corrected by calculating
-                # the potential slot.
-                # TODO: trash bluff is not implemented.
-                clue.classification = 1
-                for card in cards:
-                    if card.order in clue.touched_orders:
-                        card.add_clue(clue)
-                    else:
-                        card.add_negative_info(clue)
-
-                # Update game state: each clue costs one clue token.
-                state.clue_tokens -= 1
-                return
-
-            # Double clued cards will be analyzed several times.
-            double_clued_cards = state.double_clued_cards(clue.receiver_index, clue)
-
-            # First, we need to see whether this is a Save Clue by checking
-            # whether touching the discard slot.
-            discard_slot = state.current_discard_slot(clue.receiver_index)
-
-            if (discard_slot is not None and
-                discard_slot.order in clue.touched_orders and
-                clue.hint_type == ACTION.RANK_CLUE.value):
-                # The discard slot is touched by a rank clue!
-                # It is possible to be a Save Clue.
-                possible_save_mark = True
-                possible_save_suit = []
-
-                # Is it a non-5 critical save?
-                if clue.hint_value != 5:
-                    possible_save_mark = False
-                    for discarded_card in state.critical_non_5_cards():
-                        if discarded_card.rank == clue.hint_value:
-                            # This is a critical save.
-                            possible_save_mark = True
-                            possible_save_suit.append(discarded_card.suit_index)
-
-                # Now we know the touched discard slot is possible a save and its possible suits.
-                # However, maybe this is caused by a double-touch Play Clue.
-                if possible_save_mark:
-                    # Check whether any double touched card is **newly** playable.
-                    # If so, then we treat this as a Play Clue and mark all playable cards.
-                    play_clue_added_card_orders = []
-                    if len(double_clued_cards) > 0:
-                        for possible_playable_card in double_clued_cards:
-                            pending_focused_card = copy.deepcopy(possible_playable_card)
-                            pending_focused_card.add_clue(clue)
-                            if ((not state.is_playable(possible_playable_card)) and
-                                state.is_playable(pending_focused_card)):
-                                clue.classification = 1
-                                possible_playable_card.add_clue(clue)
-                                play_clue_added_card_orders.append(possible_playable_card.order)
-
-                        if len(play_clue_added_card_orders) > 0:
-                            # Some cards are marked now. It is a double-touch Play Clue.
-                            # For all other cards, assign save mark.
-                            clue.classification = 2
-                            for card in cards:
-                                if card.order not in clue.touched_orders:
-                                    card.add_negative_info(clue)
-                                else:
-                                    if card.order not in play_clue_added_card_orders:
-                                        card.add_clue(clue)
-                            # Update game state: each clue costs one clue token.
-                            state.clue_tokens -= 1
-                            return
-
-                    # Otherwise, this is a Save Clue.
-                    # All cards are marked as save and try to deduce the suit.
-                    clue.classification = 2
-                    for card in cards:
-                        if card.order in clue.touched_orders:
-                            card.add_clue(clue)
-                        else:
-                            card.add_negative_info(clue)
-
-                    if len(possible_save_suit) > 0:
-                        for i in range(5):
-                            if i not in possible_save_suit:
-                                discard_slot.add_negative_suit(i)
-
-                    # Update game state: each clue costs one clue token.
-                    state.clue_tokens -= 1
-                    return
-
-            # It is a Play Clue now.
-            # The focus is default as the left-most touched card, however, we should check
-            # double-touched card firstly.
-            play_focus_card_order = []
-
-            # Exception: double clued newly playable cards.
-            if len(double_clued_cards) > 0:
-                # Check whether any double touched card is **newly** playable.
-                # If so, then we adjust our focus to them, instead of the left-most touched card.
-                for possible_playable_card in double_clued_cards:
-                    pending_focused_card = copy.deepcopy(possible_playable_card)
-                    pending_focused_card.add_clue(clue)
-                    if ((not state.is_playable(possible_playable_card)) and
-                        state.is_playable(pending_focused_card)):
-                        clue.classification = 1
-                        possible_playable_card.add_clue(clue)
-                        play_focus_card_order.append(possible_playable_card.order)
-
-            # No newly playable card, and thus we mark the left-most touched card as the focus.
-            # TODO: need more tests on edge cases.
-            if len(play_focus_card_order) == 0:
-                play_focus_card_order.append(max(clue.touched_orders))
-
-            for card in cards:
-                if card.order in clue.touched_orders:
-                    if card.order in play_focus_card_order:
-                        clue.classification = 1
-                    else:
-                        clue.classification = 2
-                    card.add_clue(clue)
-                else: # append negative information
-                    card.add_negative_info(clue)
-
-            # Update game state: each clue costs one clue token.
-            state.clue_tokens -= 1
+        if data["type"] not in ["clue", "play", "draw", "discard"]:
+            printf(f"skip unknown action type '{data['type']}'")
             return
 
-    def decide_action(self, table_id=None):
-        """The main logic to determine actions to do."""
-
-        if table_id is None:
-            table_id = self.current_table_id
         state = self.games[table_id]
 
-        action = state.decide_action()
-        self.perform_action(action)
+        if data["type"] == "clue":
+            clue_hint_type = ACTION.COLOR_CLUE.value
+            if data["clue"]["type"] % ACTION.COLOR_CLUE.value != 0:
+                clue_hint_type = ACTION.RANK_CLUE.value
+
+            state.handle_action(Action(
+                action_type=clue_hint_type,
+                player_index=data["giver"],
+                clue=Clue(
+                    hint_type=clue_hint_type,
+                    hint_value=data["clue"]["value"],
+                    giver_index=data["giver"],
+                    receiver_index=data["target"],
+                    turn=data["turn"],
+                    touched_orders=data["list"])))
+            return
+
+        action_type = None
+        boom = False
+        if data["type"] == "play":
+            action_type = ACTION.PLAY.value
+        elif data["type"] == "draw":
+            action_type = ACTION.DRAW.value
+        elif data["type"] == "discard":
+            if not data["failed"]:
+                action_type = ACTION.DISCARD.value
+            else:
+                boom = True
+                action_type = ACTION.PLAY.value
+            
+        state.handle_action(Action(
+            action_type=action_type,
+            boom=boom,
+            player_index=data["playerIndex"],
+            # A temporary Card object to pass information.
+            # The actual card object will be retrieved from the game snapshot's player_hands.
+            card=Card(order=data["order"], suit_index=data["suitIndex"], rank=data["rank"])))
+
+    def decide_action(self, table_id=None):
+        if table_id is None:
+            table_id = self.current_table_id
+
+        self.perform_action(self.games[table_id].decide_action())
         
 
     # -----------
@@ -601,23 +419,3 @@ class HanabiClient:
               self.color_clue(action.clue.receiver_index, action.clue.hint_value)
             else:
               self.rank_clue(action.clue.receiver_index, action.clue.hint_value)  
-
-    def remove_card_from_hand(self, state, player_index, order):
-        hand = state.player_hands[player_index]
-
-        card_index = -1
-        for i, card in enumerate(hand):
-            if card.order == order:
-                card_index = i
-                break
-
-        if card_index == -1:
-            printf(
-                "error: unable to find card with order " + str(order) + " in"
-                "the hand of player " + str(player_index)
-            )
-            return None
-
-        card = copy.deepcopy(hand[card_index])
-        del hand[card_index]
-        return card

@@ -9,7 +9,7 @@ from src.card import Card
 from src.clue import Clue
 from src.constants import ACTION
 from src.hanabi_client import HanabiClient
-from src.game_state import GameState
+from src.game import Game
 from src.utils import dump
 
 # Fake helpful constants.
@@ -17,7 +17,7 @@ FAKE_TABLE_ID = 42
 
 # Helper functions
 def get_default_game_state():
-    state = GameState()
+    state = Game()
     state.current_player_index = 0
     state.our_player_index = 0
     state.clue_tokens = 8
@@ -56,7 +56,7 @@ def get_default_game_state():
     ]
     return state
 
-def get_default_client(game_state: GameState=None):
+def get_default_client(game_state: Game=None):
     client = HanabiClient("some_uri", "some_cookie")
     client.current_table_id = FAKE_TABLE_ID
     if game_state is None:

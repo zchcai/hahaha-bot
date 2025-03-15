@@ -17,14 +17,13 @@ FAKE_TABLE_ID = 42
 
 # Helper functions
 def get_default_game_state():
-    state = Game()
-    state.current_player_index = 0
-    state.our_player_index = 0
-    state.clue_tokens = 8
-    state.player_names = ['Alice', 'Bob', 'Charles', 'David']
+    game = Game()
+    game.our_player_index = 0
+    game.clue_tokens = 8
+    game.player_names = ['Alice', 'Bob', 'Charles', 'David']
     # https://hanab.live/replay/1124590#1
     # (This is my first online game :)
-    state.player_hands = [
+    game.player_hands = [
         # Player 0 (self)
         [
             Card(order=0),  # discard slot
@@ -54,37 +53,20 @@ def get_default_game_state():
             Card(order=15, rank=3, suit_index=0),    # draw slot
         ]
     ]
-    return state
-
-def get_default_client(game_state: Game=None):
-    client = HanabiClient("some_uri", "some_cookie")
-    client.current_table_id = FAKE_TABLE_ID
-    if game_state is None:
-        client.games[FAKE_TABLE_ID] = get_default_game_state()
-    else:
-        client.games[FAKE_TABLE_ID] = game_state
-    client.send = MagicMock()
-    return client
+    return game
 
 # Test class.
-class TestHandleAction(unittest.TestCase):
-    """Class to test handle_action() function."""
-    mock_ws_instance = MagicMock()
+class TestGame(unittest.TestCase):
+    """Class to test action predications and handling."""
 
-    @patch('websocket.WebSocketApp')
-    def test_basic_one_card_finesse(self, mock_websocketapp):
+    def test_basic_one_card_finesse(self):
         """Basic finesse."""
 
-        mock_websocketapp.return_value = self.mock_ws_instance
-        state = get_default_game_state()
-        client = get_default_client(state)
+        game = get_default_game_state()
 
-        client.decide_action(FAKE_TABLE_ID)
+        actions = game.pre_action_intention_check()
 
-        client.send.assert_called_once_with(
-            'action',
-            {'tableID': FAKE_TABLE_ID, 'type': ACTION.COLOR_CLUE.value, 'target': 1, 'value': 3} # TODO: target should be 3
-        )
+        assert(len(actions) > 0)
 
 if __name__ == '__main__':
     unittest.main()

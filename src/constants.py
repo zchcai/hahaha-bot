@@ -24,6 +24,6 @@ MAX_CLUE_NUM = 8
 # No matter which suits, the max rank is always 5.
 MAX_RANK = 5
 
-# TODO: enable multi-color or other variants later
 # Index 0 is undefined.
 MAX_CARDS_PER_RANK = [0, 3, 2, 2, 2, 1]
+MAX_CARDS_PER_RANK_UNIQUE = [0, 1, 1, 1, 1, 1]

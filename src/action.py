@@ -18,7 +18,3 @@ class Action:
     """The final outcome of this action."""
     # Required for play action.
     boom: bool = False
-
-    """The immediate next card."""
-    # Must be None for clue action.
-    next_card: Card = None

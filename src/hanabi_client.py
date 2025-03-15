@@ -3,6 +3,7 @@
 # Imports (standard library)
 import copy
 import json
+import time
 
 # Imports (3rd-party)
 import websocket
@@ -20,7 +21,7 @@ from src.constants import MAX_CLUE_NUM
 class HanabiClient:
     """The main implementation of a Hanabi client."""
 
-    def __init__(self, url, cookie):
+    def __init__(self, url, cookie, debug=None):
         # Initialize all class variables.
         self.command_handlers = {}
         self.tables = {}
@@ -28,6 +29,7 @@ class HanabiClient:
         self.username = ""
         self.ws = None
         self.games = {}
+        self.debug = debug
 
         # Initialize the website command handlers (for the lobby).
         self.command_handlers["welcome"] = self.welcome
@@ -372,6 +374,8 @@ class HanabiClient:
         printf(f'debug: sent command "{command}": {data}')
 
     def color_clue(self, target, color):
+        if self.debug is None:
+            time.sleep(2)
         self.send("action",
                   {
                       "tableID": self.current_table_id,
@@ -382,6 +386,8 @@ class HanabiClient:
         )
 
     def rank_clue(self, target, rank):
+        if self.debug is None:
+            time.sleep(2)
         self.send("action",
                   {
                       "tableID": self.current_table_id,
@@ -392,6 +398,8 @@ class HanabiClient:
         )
 
     def discard_card(self, card_order):
+        if self.debug is None:
+            time.sleep(2)
         self.send("action",
                   {
                       "tableID": self.current_table_id,
@@ -401,6 +409,8 @@ class HanabiClient:
         )
 
     def play_card(self, card_order):
+        if self.debug is None:
+            time.sleep(2)
         self.send("action",
                   {
                       "tableID": self.current_table_id,

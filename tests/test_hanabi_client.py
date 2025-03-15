@@ -18,7 +18,6 @@ FAKE_TABLE_ID = 42
 # Helper functions
 def get_default_game_state():
     state = Game()
-    state.current_player_index = 0
     state.our_player_index = 0
     state.clue_tokens = 8
     state.player_names = ['Alice', 'Bob']
@@ -43,7 +42,7 @@ def get_default_game_state():
     return state
 
 def get_default_client(game_state: Game=None):
-    client = HanabiClient("some_uri", "some_cookie")
+    client = HanabiClient("some_uri", "some_cookie", "unittest")
     client.current_table_id = FAKE_TABLE_ID
     if game_state is None:
         client.games[FAKE_TABLE_ID] = get_default_game_state()
@@ -69,7 +68,6 @@ class TestHandleAction(unittest.TestCase):
             Clue(hint_type=ACTION.COLOR_CLUE.value, hint_value=1, giver_index=1, receiver_index=0, classification=2,
                  turn=0, touched_orders=[0, 4]))
         state.player_hands[0][4].order = 10
-        state.current_player_index = 1
         client = get_default_client(state)
 
         data =  {
@@ -82,7 +80,6 @@ class TestHandleAction(unittest.TestCase):
         }
         client.handle_action(data, FAKE_TABLE_ID)
 
-        dump(state.player_hands[0])
         assert state.player_hands[0][1].clues[0].classification == 2
 
 
@@ -105,7 +102,6 @@ class TestHandleAction(unittest.TestCase):
                  turn=0, touched_orders=[0, 4]))
         state.player_hands[0][4].order = 10
         state.discard_pile.append(Card(rank=3, suit_index=3))
-        state.current_player_index = 1
         client = get_default_client(state)
 
         data =  {
@@ -118,7 +114,6 @@ class TestHandleAction(unittest.TestCase):
         }
         client.handle_action(data, FAKE_TABLE_ID)
 
-        dump(state.player_hands[0])
         assert state.player_hands[0][1].clues[0].classification == 2
         assert state.player_hands[0][1].rank == 3
         assert state.player_hands[0][1].suit_index == 3
@@ -130,7 +125,6 @@ class TestHandleAction(unittest.TestCase):
 
         mock_websocketapp.return_value = self.mock_ws_instance
         state = get_default_game_state()
-        state.current_player_index = 1
         client = get_default_client(state)
 
         data =  {'type': 'clue', 'clue': {'type': 1, 'value': 1}, 'giver': 1, 'list': [1, 3], 
@@ -155,7 +149,6 @@ class TestHandleAction(unittest.TestCase):
             Card(rank=1, suit_index=1),
             Card(rank=2, suit_index=1),
             Card(rank=1, suit_index=2)]
-        state.current_player_index = 1
         state.clue_tokens = 3
         state.turn = 10
         state.player_hands[0][0].add_clue(
@@ -186,7 +179,6 @@ class TestHandleAction(unittest.TestCase):
         mock_websocketapp.return_value = self.mock_ws_instance
         state = get_default_game_state()
         state.play_pile = [Card(rank=1, suit_index=4)]
-        state.current_player_index = 1
         client = get_default_client(state)
 
         data =  {'type': 'clue', 'clue': {'type': ACTION.COLOR_CLUE.value, 'value': 1}, 'giver': 1, 'list': [0, 3], 
@@ -238,7 +230,6 @@ class TestDecideAction(unittest.TestCase):
             Card(rank=2, suit_index=1),
             Card(rank=1, suit_index=2),
         ]
-        state.current_player_index = 0
         state.clue_tokens = 3
         state.turn = 11
         state.player_hands[0][0].add_clue(
@@ -440,7 +431,6 @@ class TestDecideAction(unittest.TestCase):
 
         mock_websocketapp.return_value = self.mock_ws_instance
         state = get_default_game_state()
-        state.current_player_index = 0
         state.our_player_index = 0
         state.clue_tokens = 1
         state.play_pile = [

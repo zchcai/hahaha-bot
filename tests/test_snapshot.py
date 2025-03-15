@@ -58,6 +58,15 @@ class TestSnapshot(unittest.TestCase):
         dump(actions)
         assert(len(actions) == 22)
 
+    def test_get_valid_actions_no_clues(self):
+        s = get_default_snapshot()
+        s.clue_tokens = 0
+
+        actions = s.get_valid_actions(viewer_index=0, player_index=0)
+
+        dump(actions)
+        assert(len(actions) == 8)
+
     def test_get_valid_actions_predict_other_player(self):
         s = get_default_snapshot()
         s = s.next_snapshot(Action(

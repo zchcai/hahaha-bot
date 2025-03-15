@@ -98,6 +98,10 @@ class Snapshot:
                     player_index=player_index,
                     card=Card(card.order)))
         
+        # Without any clue tokens, no more clues can be given.
+        if self.clue_tokens <= 0:
+            return actions
+
         # All possible clues towards other players' hand are valid.
         for i in range(self.num_players):
             cards = self.hands[i]

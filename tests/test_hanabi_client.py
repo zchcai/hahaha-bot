@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 # Imports (local application)
+from src.action import Action
 from src.card import Card
 from src.clue import Clue
 from src.constants import ACTION
@@ -17,29 +18,30 @@ FAKE_TABLE_ID = 42
 
 # Helper functions
 def get_default_game_state():
-    state = Game()
-    state.our_player_index = 0
-    state.clue_tokens = 8
-    state.player_names = ['Alice', 'Bob']
-    state.player_hands = [
+    game = Game()
+    game.our_player_index = 0
+    game.clue_tokens = 8
+    game.player_names = ['Alice', 'Bob']
+    game.num_players = len(game.player_names)
+    game.player_hands = [[],[]]
+    
+    actions = [
         # Player 0 (self)
-        [
-            Card(order=0),  # discard slot
-            Card(order=1),
-            Card(order=2),
-            Card(order=3),
-            Card(order=4),  # draw slot
-        ],
-        # Player 1 (the next player)
-        [
-            Card(order=5, rank=4, suit_index=1),    # discard slot
-            Card(order=6, rank=2, suit_index=3),
-            Card(order=7, rank=3, suit_index=4),
-            Card(order=8, rank=4, suit_index=1),
-            Card(order=9, rank=4, suit_index=0),    # draw slot
-        ]
+        Action(action_type=ACTION.DRAW.value, player_index=0, card=Card(order=0)), # discard slot
+        Action(action_type=ACTION.DRAW.value, player_index=0, card=Card(order=1)),
+        Action(action_type=ACTION.DRAW.value, player_index=0, card=Card(order=2)),
+        Action(action_type=ACTION.DRAW.value, player_index=0, card=Card(order=3)),
+        Action(action_type=ACTION.DRAW.value, player_index=0, card=Card(order=4)),
+        # Player 1
+        Action(action_type=ACTION.DRAW.value, player_index=1, card=Card(order=5, rank=4, suit_index=1)),
+        Action(action_type=ACTION.DRAW.value, player_index=1, card=Card(order=6, rank=2, suit_index=3)),
+        Action(action_type=ACTION.DRAW.value, player_index=1, card=Card(order=7, rank=3, suit_index=4)),
+        Action(action_type=ACTION.DRAW.value, player_index=1, card=Card(order=8, rank=4, suit_index=1)),
+        Action(action_type=ACTION.DRAW.value, player_index=1, card=Card(order=9, rank=4, suit_index=0)),
     ]
-    return state
+    for a in actions:
+        game.handle_action(a)
+    return game
 
 def get_default_client(game_state: Game=None):
     client = HanabiClient("some_uri", "some_cookie", "unittest")

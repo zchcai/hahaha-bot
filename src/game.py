@@ -56,19 +56,12 @@ class Game:
     action_history: list = field(default_factory=list)
 
     def take_initial_snapshot(self):
-        self.snapshot_history.append(Snapshot(
-            clue_tokens=self.clue_tokens,
-            boom_tokens=self.boom_tokens,
-            num_suits=self.num_suits,
-            num_players=self.num_players,
-            play_pile=self.play_pile.copy(),
-            discard_pile=self.discard_pile.copy(),
-            hands=[hand.copy() for hand in self.hands],
-            action_history=self.action_history.copy()))
+        s = Snapshot()
+        s.initialize(len(self.player_names), 0, self.player_hands)
+        self.snapshot_history.append(s)
 
     def handle_action(self, action: Action):
         # Pre-action intention check.
-        intented_actions = self.pre_action_intention_check()
         
         # Record the action.
         if action.action_type == ACTION.DRAW.value:
@@ -87,9 +80,6 @@ class Game:
         if len(self.snapshot_history) > 0 and action.action_type != ACTION.DRAW.value:
             self.snapshot_history.append(self.snapshot_history[-1].next_snapshot(action))
 
-        # Post-action evaluation.
-        self.post_action_evaluation(intented_actions)
-    
     def pre_action_intention_check(self, viewer_index: int=None, player_index: int=None) -> list:
         # default as our player
         if viewer_index is None:
@@ -421,6 +411,18 @@ class Game:
         return
 
     def decide_action(self):
+        s = Snapshot()
+        s.play_pile = self.play_pile
+        s.discard_pile = self.discard_pile
+        s.hands = self.player_hands
+        s.clue_tokens = self.clue_tokens
+        s.boom_tokens = self.boom_tokens
+        s.num_suits = self.num_suits
+        s.num_players = len(self.player_names)
+
+        game_valid_actions = s.get_valid_actions(self.our_player_index, self.our_player_index)
+        dump(game_valid_actions)
+        # return game_valid_actions[0]
         return self.pre_action_intention_check(self.our_player_index, self.our_player_index)[0]
 
     def try_discard(self, cards):
@@ -477,13 +479,13 @@ class Game:
                 continue
 
             # Firstly, check whether the other cards are also discarded.
-            if self.count_discarded(rank, suit) >= MAX_CARDS_PER_RANK[rank]:
+            if self.count_discarded(rank, suit) >= MAX_CARDS_PER_RANK[suit][rank]:
                 continue
 
             # Second, check whether this card can be played later.
             can_be_played_later = True
             for pending_rank in range(self.play_stacks()[suit] + 1, rank):
-                if self.count_discarded(pending_rank, suit) >= MAX_CARDS_PER_RANK[pending_rank]:
+                if self.count_discarded(pending_rank, suit) >= MAX_CARDS_PER_RANK[suit][pending_rank]:
                     # This card cannot be played later.
                     can_be_played_later = False
 
@@ -563,7 +565,7 @@ class Game:
             for discard in self.discard_pile:
                 if discard.suit_index == card.suit_index and discard.rank == next_rank:
                     count += 1
-            if count == MAX_CARDS_PER_RANK[next_rank]:
+            if count == MAX_CARDS_PER_RANK[card.suit_index][next_rank]:
                 return True
 
             # It is a trash if it cannot be the remaining number(s).
@@ -582,7 +584,7 @@ class Game:
                 for discard in self.discard_pile:
                     if discard.suit_index == card.suit_index and discard.rank == j:
                         count += 1
-                if count < MAX_CARDS_PER_RANK[j]:
+                if count < MAX_CARDS_PER_RANK[card.suit_index][j]:
                     # It is still useful.
                     return False
             # all possible remaining ranks are impossible.
@@ -600,7 +602,7 @@ class Game:
             for discard in self.discard_pile:
                 if discard.suit_index == card.suit_index and discard.rank == i:
                     num_discarded += 1
-            if num_discarded == MAX_CARDS_PER_RANK[i]:
+            if num_discarded == MAX_CARDS_PER_RANK[card.suit_index][i]:
                 return True
         return False
 

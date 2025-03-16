@@ -7,6 +7,7 @@ from src.card import Card
 from src.clue import Clue
 from src.action import Action
 from src.constants import ACTION, MAX_BOOM_NUM, MAX_CLUE_NUM, MAX_RANK, MAX_CARDS_PER_RANK
+from src.utils import dump, printf
 
 
 # This is just a reference. For a fully-fledged bot, the game state would need
@@ -19,7 +20,6 @@ class Snapshot:
     clue_tokens: int = MAX_CLUE_NUM
     boom_tokens: int = MAX_BOOM_NUM
     num_suits: int = 5 # default as no variant
-    max_score_limit: int = 25 # default as no variant
     num_remaining_cards: int = -1
     post_draw_turns: int = 0
     num_players: int = -1
@@ -45,9 +45,9 @@ class Snapshot:
 
     def initialize(self, num_players, start_player_index, hands):
         self.num_players = num_players
-        self.num_remaining_cards = self.num_suits * sum(MAX_CARDS_PER_RANK)
         self.start_player_index = start_player_index
         self.hands = hands
+        self.num_remaining_cards = sum(sum(MAX_CARDS_PER_RANK[i]) for i in range(self.num_suits))
         for hand in hands:
             for card in hand:
                 self.num_remaining_cards -= 1
@@ -136,12 +136,27 @@ class Snapshot:
         if self.boom_tokens <= 0:
             return True
         # All possible cards are played.
-        if len(self.play_pile) == self.max_score_limit:
+        if len(self.play_pile) == self._max_score_limit():
             return True
         # All cards are drawn and everyone finishes the final turn.
         if self.num_remaining_cards == 0 and self.post_draw_turns == self.num_players:
             return True
         return False
+
+    def _max_score_limit(self) -> int:
+        theoretical_max_score = self.num_suits * MAX_RANK
+        if len(self.discard_pile) == 0:
+            return theoretical_max_score
+
+        discard_ranks = [[0] * (MAX_RANK + 1) for _ in range(self.num_suits)]
+        for card in self.discard_pile:
+            discard_ranks[card.suit_index][card.rank] += 1
+        for suit in range(self.num_suits):
+            for rank in range(1, MAX_RANK + 1):
+                if discard_ranks[suit][rank] == MAX_CARDS_PER_RANK[suit][rank]:
+                    theoretical_max_score -= (MAX_RANK - rank + 1)
+                    break
+        return theoretical_max_score
     
     def _perform_action(self, action: Action):
         if action.action_type == ACTION.DRAW.value:
@@ -151,7 +166,8 @@ class Snapshot:
         if action.action_type == ACTION.PLAY.value:
             if action.boom:
                 self._perform_boom(action)
-            self._perform_play(action)
+            else:
+                self._perform_play(action)
         elif action.action_type == ACTION.DISCARD.value:
             self._perform_discard(action)
         elif action.action_type == ACTION.COLOR_CLUE.value or action.action_type == ACTION.RANK_CLUE.value:
@@ -165,21 +181,35 @@ class Snapshot:
         self.num_remaining_cards -= 1
 
     def _perform_play(self, action: Action):
-        card = action.card
-        self.hands[action.player_index].remove(card)
-        self.play_pile.append(card)
+        self.play_pile.append(self._remove_card_from_hand(action.player_index, action.card.order))
     
     def _perform_discard(self, action: Action):
-        card = action.card
-        self.hands[action.player_index].remove(card)
-        self.discard_pile.append(card)
+        self.discard_pile.append(self._remove_card_from_hand(action.player_index, action.card.order))
         self.clue_tokens += 1
     
     def _perform_boom(self, action: Action):
-        card = action.card
-        self.hands[action.player_index].remove(card)
+        self.discard_pile.append(self._remove_card_from_hand(action.player_index, action.card.order))
         self.boom_tokens -= 1
-        self.discard_pile.append(action.card)
     
     def _perform_clue(self, action: Action):
         self.clue_tokens -= 1
+
+    def _remove_card_from_hand(self, player_index, order):
+        hand = self.hands[player_index]
+
+        card_index = -1
+        for i, card in enumerate(hand):
+            if card.order == order:
+                card_index = i
+                break
+
+        if card_index == -1:
+            printf(
+                "error: unable to find card with order " + str(order) + " in "
+                "the hand of player " + str(player_index)
+            )
+            return None
+
+        card = copy.deepcopy(hand[card_index])
+        del hand[card_index]
+        return card

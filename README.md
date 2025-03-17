@@ -1,6 +1,6 @@
 # Hahaha-bot
 
-**Current Progress**: █░░░░░░░░░ 10%
+**Current Progress**: ██░░░░░░░░ 20%
 
 This repo will implement a mainly [rule-based](https://docs.google.com/document/d/1u4PzGPzN3h79s0QLlejsM6-_m80oemAnbhTrTwXmOL0/edit) robot to play with humans. It is forked from [Hanabi-Live/hanabi-live-bot](https://github.com/Hanabi-Live/hanabi-live-bot) because we want to make the use of [hanab.live](https://github.com/Hanabi-Live//hanabi-live)'s powerful UI features to play, watch and review Hanabi games interactively with robots in a more human-friendly way.
 
@@ -22,6 +22,15 @@ This repo will implement a mainly [rule-based](https://docs.google.com/document/
 - Then, start the game and ~~play~~ debug! :sweat_smile:
   - We can use this to let it print debug information: 
     - `/msg [robot_username] /debug`
+
+### Robots Auto-play
+
+- (Optional) `/msg robot1 /terminate`: terminate any existing games.
+- `/msg robot1 /create`: create a room, default as 'No Variant'.
+- `/msg robot1 /invite`: send invitation to robotX, X = 1, 2, 3, 4.
+- `/msg robot1 /start`: start the game.
+
+Then ~~enjoy~~ watch their game as a viewer!
 
 ## Development Tips
 

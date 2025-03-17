@@ -117,13 +117,15 @@ def main():
             threading.Thread(daemon=True,
                              target=HanabiClient,
                              args=(ws_url,
-                                   get_cookies_by_password(url, username, password))).start()
+                                   get_cookies_by_password(url, username, password),
+                                   username)).start()
         else:
             # Assume using the same string for a robot's password and username.
             threading.Thread(daemon=True,
                              target=HanabiClient,
                              args=(ws_url,
-                                   get_cookies_by_password(url, arg, arg))).start()
+                                   get_cookies_by_password(url, arg, arg),
+                                   arg)).start()
     while True:
         # Wait for keyboardIntereption
         time.sleep(5)

@@ -33,3 +33,9 @@ MAX_CARDS_PER_RANK = [
     [0, 3, 2, 2, 2, 1], # purple
     [0, 1, 1, 1, 1, 1], # black (unique)
 ]
+
+# Players hand card limit.
+# 2-3 players: 5 cards
+# 4-5 players: 4 cards
+# 6 players:   3 cards
+MAX_CARDS_PER_PLAYER = [0, 0, 5, 5, 4, 4, 3]

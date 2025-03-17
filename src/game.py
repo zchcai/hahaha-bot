@@ -1,13 +1,13 @@
 """The table of a game with our player index."""
 import copy
-import time
+import random
 
 from dataclasses import dataclass, field
 
 from src.action import Action
 from src.card import Card
 from src.clue import Clue
-from src.constants import ACTION, MAX_BOOM_NUM, MAX_CLUE_NUM, MAX_RANK, MAX_CARDS_PER_RANK
+from src.constants import ACTION, MAX_BOOM_NUM, MAX_CARDS_PER_PLAYER, MAX_CARDS_PER_RANK, MAX_CLUE_NUM, MAX_RANK
 from src.snapshot import Snapshot
 from src.utils import printf, dump
 
@@ -155,9 +155,8 @@ class Game:
         # TODO: don't clue already clued cards.
         # Try to clue immediate playable cards by color clue or rank clue.
         # First, search all playable candidates.
-        num_players = len(self.player_names)
         immediate_playable_cards_per_player = []
-        for player in range(num_players):
+        for player in range(len(self.player_names)):
             immediate_playable_cards_per_player.append([])
             if player == self.our_player_index:
                 continue
@@ -229,7 +228,7 @@ class Game:
         # self.snapshot_history[-1].hands[action.player_index].append(action.card)
         self.player_hands[action.player_index].append(action.card)
         self.action_history.append(action)
-        if len(self.action_history) == self.num_players * 5:
+        if len(self.action_history) == len(self.player_names) * MAX_CARDS_PER_PLAYER[len(self.player_names)]:
             # All players have drawn their cards.
             # Now we need to decide our action.
             self.take_initial_snapshot()
@@ -422,7 +421,7 @@ class Game:
 
         game_valid_actions = s.get_valid_actions(self.our_player_index, self.our_player_index)
         dump(game_valid_actions)
-        # return game_valid_actions[0]
+        # return game_valid_actions[random.randint(0, len(game_valid_actions) - 1)]
         return self.pre_action_intention_check(self.our_player_index, self.our_player_index)[0]
 
     def try_discard(self, cards):

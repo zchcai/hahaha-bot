@@ -44,7 +44,7 @@ def get_default_game_state():
     return game
 
 def get_default_client(game_state: Game=None):
-    client = HanabiClient("some_uri", "some_cookie", "unittest")
+    client = HanabiClient("some_uri", "some_cookie", debug="unittest")
     client.current_table_id = FAKE_TABLE_ID
     if game_state is None:
         client.games[FAKE_TABLE_ID] = get_default_game_state()

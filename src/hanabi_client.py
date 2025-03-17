@@ -21,7 +21,7 @@ from src.constants import MAX_CLUE_NUM
 class HanabiClient:
     """The main implementation of a Hanabi client."""
 
-    def __init__(self, url, cookie, debug=None):
+    def __init__(self, url, cookie, username="robot1", debug=None):
         # Initialize all class variables.
         self.command_handlers = {}
         self.tables = {}
@@ -30,6 +30,7 @@ class HanabiClient:
         self.ws = None
         self.games = {}
         self.debug = debug
+        self.username = username
 
         # Initialize the website command handlers (for the lobby).
         self.command_handlers["welcome"] = self.welcome
@@ -153,9 +154,56 @@ class HanabiClient:
                 printf('Error when deciding action: ', e)
         elif command == "debug":
             self.print_debug_info()
+        elif command == "create":
+            self.chat_create()
+        elif command == "terminate":
+            self.chat_terminate()
+        elif command == "invite":
+            self.chat_invite()
+        elif command == "start":
+            self.chat_start()
         else:
             msg = "That is not a valid command."
             self.chat_reply(msg, data["who"])
+        
+    def chat_invite(self):
+        for i in range(1, 5):
+            name = "robot" + str(i)
+            if name != self.username:
+                self.chat_reply("/join", name)
+        
+    def chat_create(self):
+        self.send(
+            "tableCreate",
+            {
+                "name": "test game",
+                "options": {
+                    "VariantName": "No Variant",
+                },
+            }
+        )
+    
+    def chat_start(self):
+        table_id = self.current_table_id
+        for table in self.tables.values():
+            if not table["running"] and self.username in table["players"]:
+                table_id = table["id"]
+                break
+        self.send(
+            "tableStart",
+            {
+                "tableID": table_id,
+            },
+        )
+    
+    def chat_terminate(self):
+        for table_id in self.tables.keys():
+            self.send(
+                "tableTerminate",
+                {
+                    "tableID": table_id,
+                }
+            )
 
     def chat_join(self, data):
         # Someone sent a private message to the bot and requested that we join
@@ -187,6 +235,7 @@ class HanabiClient:
                 "password": "",
             },
         )
+        self.current_table_id = table_id
 
     def table(self, data):
         self.tables[data["id"]] = data
@@ -233,12 +282,12 @@ class HanabiClient:
 
         # Initialize the play stacks.
         # https://raw.githubusercontent.com/Hanabi-Live/hanabi-live/refs/heads/main/packages/game/src/json/variants.json
-        # No Variants:      0
-        # Black (6 suits):  2
-        if data["variant"]["id"] == 0:
+        # No Variant:      0
+        # Black (6 Suits):  2
+        if data["options"]["variantName"] == "No Variant":
             game.num_suits = 5 
         else:
-            printf("error: Variant not supported: " + data["variant"])
+            printf("error: Variant not supported: " + data)
             NotImplementedError("Variant not supported")
 
         # At this point, the JavaScript client would have enough information to

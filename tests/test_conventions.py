@@ -1,7 +1,7 @@
 import unittest
 
 from src.card import Card
-from src.conventions import call_llm
+from src.conventions import evaluate
 from src.snapshot import Snapshot
 
 
@@ -47,6 +47,7 @@ class TestSnapshot(unittest.TestCase):
     def test_call_llm(self):
         s = get_default_snapshot()
 
-        res = call_llm(s)
+        game_valid_actions = s.get_valid_actions(0, 0)
+        actions = evaluate(s, 0, 0)
 
-        assert(res == 'Color Clue Blue to Player 3')
+        assert(len(actions) == len(game_valid_actions))

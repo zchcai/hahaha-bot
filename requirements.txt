@@ -1,5 +1,7 @@
 jsonpickle
+ollama
+pytest-cov
+pytest-watch
 python-dotenv
 requests
 websocket-client
-ollama

@@ -17,10 +17,11 @@ from src.hanabi_client import HanabiClient
 from src.utils import printf
 
 LOGIN_PATH = "/login"
-WS_PATH="/ws"
-PUBLIC_WEBSITE="hanab.live"
+WS_PATH = "/ws"
+PUBLIC_WEBSITE = "hanab.live"
 
-def get_cookies_by_password(url, username, password):
+
+def _get_cookies_by_password(url, username, password):
     printf('Authenticating to "' + url + '" with a username of "' + username + '".')
     resp = requests.post(
         url,
@@ -31,7 +32,7 @@ def get_cookies_by_password(url, username, password):
             # client, but the server will also accept "bot" as a valid version.
             "version": "bot",
         },
-        timeout=10
+        timeout=10,
     )
 
     # Handle failed authentication and other errors.
@@ -53,6 +54,7 @@ def get_cookies_by_password(url, username, password):
 
     return cookie
 
+
 def main():
     """Authenticate, login to the WebSocket server, and run forever."""
 
@@ -62,7 +64,7 @@ def main():
         printf(
             'error: the ".env" file does not exist;'
             'copy the ".env_template" file to ".env" and '
-            'edit the values accordingly'
+            "edit the values accordingly"
         )
         sys.exit(1)
 
@@ -105,7 +107,7 @@ def main():
     ws_url = ws_protocol + "://" + host + WS_PATH
 
     if host == PUBLIC_WEBSITE or len(sys.argv) == 1:
-        cookie = get_cookies_by_password(url, username, password)
+        cookie = _get_cookies_by_password(url, username, password)
 
         # Start!
         HanabiClient(ws_url, cookie)
@@ -114,21 +116,26 @@ def main():
     # Otherwise, multi-threads.
     for arg in sys.argv:
         if arg.endswith("main.py"):
-            threading.Thread(daemon=True,
-                             target=HanabiClient,
-                             args=(ws_url,
-                                   get_cookies_by_password(url, username, password),
-                                   username)).start()
+            threading.Thread(
+                daemon=True,
+                target=HanabiClient,
+                args=(
+                    ws_url,
+                    _get_cookies_by_password(url, username, password),
+                    username,
+                ),
+            ).start()
         else:
             # Assume using the same string for a robot's password and username.
-            threading.Thread(daemon=True,
-                             target=HanabiClient,
-                             args=(ws_url,
-                                   get_cookies_by_password(url, arg, arg),
-                                   arg)).start()
+            threading.Thread(
+                daemon=True,
+                target=HanabiClient,
+                args=(ws_url, _get_cookies_by_password(url, arg, arg), arg),
+            ).start()
     while True:
         # Wait for keyboardIntereption
         time.sleep(5)
+
 
 if __name__ == "__main__":
     main()

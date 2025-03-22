@@ -1,4 +1,5 @@
 """The table of a game with our player index."""
+
 import copy
 import random
 
@@ -7,7 +8,14 @@ from dataclasses import dataclass, field
 from src.action import Action
 from src.card import Card
 from src.clue import Clue
-from src.constants import ACTION, MAX_BOOM_NUM, MAX_CARDS_PER_PLAYER, MAX_CARDS_PER_RANK, MAX_CLUE_NUM, MAX_RANK
+from src.constants import (
+    ACTION,
+    MAX_BOOM_NUM,
+    MAX_CARDS_PER_PLAYER,
+    MAX_CARDS_PER_RANK,
+    MAX_CLUE_NUM,
+    MAX_RANK,
+)
 from src.snapshot import Snapshot
 from src.utils import printf, dump
 
@@ -23,7 +31,7 @@ class Game:
     """Ground truth information."""
     clue_tokens: int = MAX_CLUE_NUM
     boom_tokens: int = MAX_BOOM_NUM
-    num_suits: int = 5 # default as no variant
+    num_suits: int = 5  # default as no variant
 
     player_names: list = field(default_factory=list)
 
@@ -62,7 +70,7 @@ class Game:
 
     def handle_action(self, action: Action):
         # Pre-action intention check.
-        
+
         # Record the action.
         if action.action_type == ACTION.DRAW.value:
             # Draw action in the beginning is not recorded.
@@ -74,27 +82,37 @@ class Game:
                 self.handle_play(action)
         elif action.action_type == ACTION.DISCARD.value:
             self.handle_discard(action)
-        elif action.action_type == ACTION.COLOR_CLUE.value or action.action_type == ACTION.RANK_CLUE.value:
+        elif (
+            action.action_type == ACTION.COLOR_CLUE.value
+            or action.action_type == ACTION.RANK_CLUE.value
+        ):
             self.handle_clue(action)
-                
-        if len(self.snapshot_history) > 0 and action.action_type != ACTION.DRAW.value:
-            self.snapshot_history.append(self.snapshot_history[-1].next_snapshot(action))
 
-    def pre_action_intention_check(self, viewer_index: int=None, player_index: int=None) -> list:
+        if len(self.snapshot_history) > 0 and action.action_type != ACTION.DRAW.value:
+            self.snapshot_history.append(
+                self.snapshot_history[-1].next_snapshot(action)
+            )
+
+    def pre_action_intention_check(
+        self, viewer_index: int = None, player_index: int = None
+    ) -> list:
         # default as our player
         if viewer_index is None:
             viewer_index = self.our_player_index
         # default as the current player
         if player_index is None:
             player_index = self.current_player_index()
-        if viewer_index != self.our_player_index or player_index != self.our_player_index:
+        if (
+            viewer_index != self.our_player_index
+            or player_index != self.our_player_index
+        ):
             # TODO: analyze other players' intention from a specified view
             return []
-        
+
         # Check whether we need to save the discard slot of the next player.
 
         # Any play at our hand?
-        
+
         # Any clue at our hand?
 
         # The server expects to be told about actions in the following format:
@@ -128,24 +146,48 @@ class Game:
                 # - they have playable cards to clue or
                 # - they have cards to play now.
                 if self.clue_tokens > 0:
-                    return [Action(action_type=ACTION.RANK_CLUE.value,
-                                  player_index=self.our_player_index, 
-                                  clue=Clue(hint_type=ACTION.RANK_CLUE.value, 
-                                            hint_value=discard_slot.rank, 
-                                            giver_index=self.our_player_index, 
-                                            receiver_index=player))]
+                    return [
+                        Action(
+                            action_type=ACTION.RANK_CLUE.value,
+                            player_index=self.our_player_index,
+                            clue=Clue(
+                                hint_type=ACTION.RANK_CLUE.value,
+                                hint_value=discard_slot.rank,
+                                giver_index=self.our_player_index,
+                                receiver_index=player,
+                            ),
+                        )
+                    ]
                 # Be creative!
                 my_discard_slot = self.current_discard_slot(self.our_player_index)
                 if my_discard_slot is not None:
-                    return [Action(action_type=ACTION.DISCARD.value, card=my_discard_slot, player_index=self.our_player_index)]
-                return [Action(action_type=ACTION.PLAY.value, card=cards[-1], player_index=self.our_player_index)]
+                    return [
+                        Action(
+                            action_type=ACTION.DISCARD.value,
+                            card=my_discard_slot,
+                            player_index=self.our_player_index,
+                        )
+                    ]
+                return [
+                    Action(
+                        action_type=ACTION.PLAY.value,
+                        card=cards[-1],
+                        player_index=self.our_player_index,
+                    )
+                ]
 
         # Play cards if possible.
         for i in range(num_cards):
             # From draw slot to discard slot
             card = cards[num_cards - i - 1]
             if self.is_playable(card):
-                return [Action(action_type=ACTION.PLAY.value, card=card, player_index=self.our_player_index)]
+                return [
+                    Action(
+                        action_type=ACTION.PLAY.value,
+                        card=card,
+                        player_index=self.our_player_index,
+                    )
+                ]
 
         # Discard when neither a play nor a clue.
         if self.clue_tokens <= 0:
@@ -179,10 +221,30 @@ class Game:
                         continue
                     # Otherwise, we just double clue it with different clue.
                     if playable_card.clues[-1].hint_type == ACTION.RANK_CLUE.value:
-                        return [Action(action_type=ACTION.COLOR_CLUE.value, player_index=self.our_player_index, 
-                                      clue=Clue(hint_type=ACTION.COLOR_CLUE.value, hint_value=target_color, giver_index=self.our_player_index, receiver_index=player))]
-                    return [Action(action_type=ACTION.RANK_CLUE.value, player_index=self.our_player_index, 
-                                  clue=Clue(hint_type=ACTION.RANK_CLUE.value, hint_value=target_rank, giver_index=self.our_player_index, receiver_index=player))]
+                        return [
+                            Action(
+                                action_type=ACTION.COLOR_CLUE.value,
+                                player_index=self.our_player_index,
+                                clue=Clue(
+                                    hint_type=ACTION.COLOR_CLUE.value,
+                                    hint_value=target_color,
+                                    giver_index=self.our_player_index,
+                                    receiver_index=player,
+                                ),
+                            )
+                        ]
+                    return [
+                        Action(
+                            action_type=ACTION.RANK_CLUE.value,
+                            player_index=self.our_player_index,
+                            clue=Clue(
+                                hint_type=ACTION.RANK_CLUE.value,
+                                hint_value=target_rank,
+                                giver_index=self.our_player_index,
+                                receiver_index=player,
+                            ),
+                        )
+                    ]
 
                 # Can we give color clue or rank clue?
                 can_give_color_clue = True
@@ -200,18 +262,37 @@ class Game:
 
                 # For playable cards, color clue is better than rank clue.
                 if can_give_color_clue:
-                    return [Action(action_type=ACTION.COLOR_CLUE.value, player_index=self.our_player_index, 
-                                    clue=Clue(hint_type=ACTION.COLOR_CLUE.value, hint_value=target_color, giver_index=self.our_player_index, receiver_index=player))]
+                    return [
+                        Action(
+                            action_type=ACTION.COLOR_CLUE.value,
+                            player_index=self.our_player_index,
+                            clue=Clue(
+                                hint_type=ACTION.COLOR_CLUE.value,
+                                hint_value=target_color,
+                                giver_index=self.our_player_index,
+                                receiver_index=player,
+                            ),
+                        )
+                    ]
                 if can_give_rank_clue:
-                    return [Action(action_type=ACTION.RANK_CLUE.value, player_index=self.our_player_index, 
-                                  clue=Clue(hint_type=ACTION.RANK_CLUE.value, hint_value=target_rank, giver_index=self.our_player_index, receiver_index=player))]
+                    return [
+                        Action(
+                            action_type=ACTION.RANK_CLUE.value,
+                            player_index=self.our_player_index,
+                            clue=Clue(
+                                hint_type=ACTION.RANK_CLUE.value,
+                                hint_value=target_rank,
+                                giver_index=self.our_player_index,
+                                receiver_index=player,
+                            ),
+                        )
+                    ]
 
         # Nothing we can do, so discard.
         return [self.try_discard(cards)]
 
     def post_action_evaluation(self, intented_actions: list):
         pass
-        
 
     # --------------------------------------
     # AI logic or functions from this point.
@@ -223,12 +304,15 @@ class Game:
     # 2a. Other people's turn: Compare the real action and predicated one.
     # 2b. Our own turn: Compare the outcome and our assumption.
     # --------------------------------------
-    
+
     def handle_draw(self, action: Action):
         # self.snapshot_history[-1].hands[action.player_index].append(action.card)
         self.player_hands[action.player_index].append(action.card)
         self.action_history.append(action)
-        if len(self.action_history) == len(self.player_names) * MAX_CARDS_PER_PLAYER[len(self.player_names)]:
+        if (
+            len(self.action_history)
+            == len(self.player_names) * MAX_CARDS_PER_PLAYER[len(self.player_names)]
+        ):
             # All players have drawn their cards.
             # Now we need to decide our action.
             self.take_initial_snapshot()
@@ -245,7 +329,7 @@ class Game:
         # Record this action in history with the updated card information.
         action.card = card
         self.action_history.append(action)
-    
+
     def handle_discard(self, action: Action):
         # TODO: pre-/post- analysis.
 
@@ -259,7 +343,7 @@ class Game:
         action.card = card
         self.clue_tokens += 1
         self.action_history.append(action)
-        
+
     def handle_boom(self, action: Action):
         # TODO: pre-/post- analysis.
 
@@ -273,7 +357,7 @@ class Game:
         action.card = card
         self.boom_tokens -= 1
         self.action_history.append(action)
-    
+
     def handle_clue(self, action: Action):
         # Add clue into touched cards.
         clue = action.clue
@@ -304,9 +388,11 @@ class Game:
         # whether touching the discard slot.
         discard_slot = self.current_discard_slot(clue.receiver_index)
 
-        if (discard_slot is not None and
-            discard_slot.order in clue.touched_orders and
-            clue.hint_type == ACTION.RANK_CLUE.value):
+        if (
+            discard_slot is not None
+            and discard_slot.order in clue.touched_orders
+            and clue.hint_type == ACTION.RANK_CLUE.value
+        ):
             # The discard slot is touched by a rank clue!
             # It is possible to be a Save Clue depends on whether clue-receiver has playable cards.
             possible_save_mark = True
@@ -331,11 +417,14 @@ class Game:
                     for possible_playable_card in double_clued_cards:
                         pending_focused_card = copy.deepcopy(possible_playable_card)
                         pending_focused_card.add_clue(clue)
-                        if ((not self.is_playable(possible_playable_card)) and
-                            self.is_playable(pending_focused_card)):
+                        if (
+                            not self.is_playable(possible_playable_card)
+                        ) and self.is_playable(pending_focused_card):
                             clue.classification = 1
                             possible_playable_card.add_clue(clue)
-                            play_clue_added_card_orders.append(possible_playable_card.order)
+                            play_clue_added_card_orders.append(
+                                possible_playable_card.order
+                            )
 
                     if len(play_clue_added_card_orders) > 0:
                         # Some cards are marked now. It is a double-touch Play Clue.
@@ -383,8 +472,9 @@ class Game:
             for possible_playable_card in double_clued_cards:
                 pending_focused_card = copy.deepcopy(possible_playable_card)
                 pending_focused_card.add_clue(clue)
-                if ((not self.is_playable(possible_playable_card)) and
-                    self.is_playable(pending_focused_card)):
+                if (not self.is_playable(possible_playable_card)) and self.is_playable(
+                    pending_focused_card
+                ):
                     clue.classification = 1
                     possible_playable_card.add_clue(clue)
                     play_focus_card_order.append(possible_playable_card.order)
@@ -401,7 +491,7 @@ class Game:
                 else:
                     clue.classification = 2
                 card.add_clue(clue)
-            else: # append negative information
+            else:  # append negative information
                 card.add_negative_info(clue)
 
         # Update game state: each clue costs one clue token.
@@ -419,10 +509,14 @@ class Game:
         s.num_suits = self.num_suits
         s.num_players = len(self.player_names)
 
-        game_valid_actions = s.get_valid_actions(self.our_player_index, self.our_player_index)
+        game_valid_actions = s.get_valid_actions(
+            self.our_player_index, self.our_player_index
+        )
         dump(game_valid_actions)
         # return game_valid_actions[random.randint(0, len(game_valid_actions) - 1)]
-        return self.pre_action_intention_check(self.our_player_index, self.our_player_index)[0]
+        return self.pre_action_intention_check(
+            self.our_player_index, self.our_player_index
+        )[0]
 
     def try_discard(self, cards):
         if self.clue_tokens == MAX_CLUE_NUM:
@@ -433,23 +527,39 @@ class Game:
                         continue
                     for card in hand:
                         if card.rank == i:
-                            return Action(action_type=ACTION.RANK_CLUE.value,
-                                          player_index=self.our_player_index, 
-                                          clue=Clue(hint_type=ACTION.RANK_CLUE.value, 
-                                                    hint_value=i, 
-                                                    giver_index=self.our_player_index, 
-                                                    receiver_index=j))
+                            return Action(
+                                action_type=ACTION.RANK_CLUE.value,
+                                player_index=self.our_player_index,
+                                clue=Clue(
+                                    hint_type=ACTION.RANK_CLUE.value,
+                                    hint_value=i,
+                                    giver_index=self.our_player_index,
+                                    receiver_index=j,
+                                ),
+                            )
 
         # Discard trash cards firstly.
         for card in cards:
             if self.is_trash(card):
-                return Action(action_type=ACTION.DISCARD.value, card=card, player_index=self.our_player_index)
+                return Action(
+                    action_type=ACTION.DISCARD.value,
+                    card=card,
+                    player_index=self.our_player_index,
+                )
 
         # Then oldest unclued card.
         for card in cards:
             if len(card.clues) == 0:
-                return Action(action_type=ACTION.DISCARD.value, card=card, player_index=self.our_player_index)
-        return Action(action_type=ACTION.PLAY.value, card=cards[-1], player_index=self.our_player_index)
+                return Action(
+                    action_type=ACTION.DISCARD.value,
+                    card=card,
+                    player_index=self.our_player_index,
+                )
+        return Action(
+            action_type=ACTION.PLAY.value,
+            card=cards[-1],
+            player_index=self.our_player_index,
+        )
 
     def current_player_index(self):
         turns = 0
@@ -484,7 +594,10 @@ class Game:
             # Second, check whether this card can be played later.
             can_be_played_later = True
             for pending_rank in range(self.play_stacks()[suit] + 1, rank):
-                if self.count_discarded(pending_rank, suit) >= MAX_CARDS_PER_RANK[suit][pending_rank]:
+                if (
+                    self.count_discarded(pending_rank, suit)
+                    >= MAX_CARDS_PER_RANK[suit][pending_rank]
+                ):
                     # This card cannot be played later.
                     can_be_played_later = False
 
@@ -636,10 +749,13 @@ class Game:
             return False
 
         for discarded_card in self.discard_pile:
-            if discarded_card.rank == card.rank and discarded_card.suit_index == card.suit_index:
+            if (
+                discarded_card.rank == card.rank
+                and discarded_card.suit_index == card.suit_index
+            ):
                 return True
         return False
-    
+
     def play_stacks(self):
         stacks = [0] * self.num_suits
         for card in self.play_pile:

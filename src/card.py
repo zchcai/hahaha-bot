@@ -7,11 +7,13 @@ from src.clue import Clue
 from src.constants import ACTION, MAX_RANK
 from src.finesse import Finesse
 
+
 @dataclass
 class Card:
     """Card information at one player's hand."""
+
     # basic information
-    order: int = -1 # unique No. for each card
+    order: int = -1  # unique No. for each card
     rank: int = -1
     suit_index: int = -1
     owner_index: int = -1
@@ -75,7 +77,7 @@ class Card:
                     break
 
     def add_negative_info(self, untouched_clue: Clue):
-        """"Add negative information from a untouched clue."""
+        """ "Add negative information from a untouched clue."""
         if untouched_clue.hint_type == ACTION.RANK_CLUE.value:
             self.add_negative_rank(untouched_clue.hint_value)
         elif untouched_clue.hint_type == ACTION.COLOR_CLUE.value:

@@ -151,7 +151,7 @@ class HanabiClient:
             try:
                 self.decide_action(self.current_table_id)
             except Exception as e:
-                printf('Error when deciding action: ', e)
+                printf("Error when deciding action: ", e)
         elif command == "debug":
             self.print_debug_info()
         elif command == "create":
@@ -165,13 +165,13 @@ class HanabiClient:
         else:
             msg = "That is not a valid command."
             self.chat_reply(msg, data["who"])
-        
+
     def chat_invite(self):
         for i in range(1, 5):
             name = "robot" + str(i)
             if name != self.username:
                 self.chat_reply("/join", name)
-        
+
     def chat_create(self):
         self.send(
             "tableCreate",
@@ -180,9 +180,9 @@ class HanabiClient:
                 "options": {
                     "VariantName": "No Variant",
                 },
-            }
+            },
         )
-    
+
     def chat_start(self):
         table_id = self.current_table_id
         for table in self.tables.values():
@@ -195,14 +195,14 @@ class HanabiClient:
                 "tableID": table_id,
             },
         )
-    
+
     def chat_terminate(self):
         for table_id in self.tables.keys():
             self.send(
                 "tableTerminate",
                 {
                     "tableID": table_id,
-                }
+                },
             )
 
     def chat_join(self, data):
@@ -285,7 +285,7 @@ class HanabiClient:
         # No Variant:      0
         # Black (6 Suits):  2
         if data["options"]["variantName"] == "No Variant":
-            game.num_suits = 5 
+            game.num_suits = 5
         else:
             printf("error: Variant not supported: " + data)
             NotImplementedError("Variant not supported")
@@ -310,7 +310,10 @@ class HanabiClient:
         self.handle_action(data["action"], data["tableID"])
         post_turn = len(game.action_history)
 
-        if post_turn != pre_turn and game.current_player_index() == game.our_player_index:
+        if (
+            post_turn != pre_turn
+            and game.current_player_index() == game.our_player_index
+        ):
             self.decide_action(data["tableID"])
 
     def game_action_list(self, data):
@@ -363,16 +366,20 @@ class HanabiClient:
             if data["clue"]["type"] % ACTION.COLOR_CLUE.value != 0:
                 clue_hint_type = ACTION.RANK_CLUE.value
 
-            state.handle_action(Action(
-                action_type=clue_hint_type,
-                player_index=data["giver"],
-                clue=Clue(
-                    hint_type=clue_hint_type,
-                    hint_value=data["clue"]["value"],
-                    giver_index=data["giver"],
-                    receiver_index=data["target"],
-                    turn=data["turn"],
-                    touched_orders=data["list"])))
+            state.handle_action(
+                Action(
+                    action_type=clue_hint_type,
+                    player_index=data["giver"],
+                    clue=Clue(
+                        hint_type=clue_hint_type,
+                        hint_value=data["clue"]["value"],
+                        giver_index=data["giver"],
+                        receiver_index=data["target"],
+                        turn=data["turn"],
+                        touched_orders=data["list"],
+                    ),
+                )
+            )
             return
 
         action_type = None
@@ -387,21 +394,25 @@ class HanabiClient:
             else:
                 boom = True
                 action_type = ACTION.PLAY.value
-            
-        state.handle_action(Action(
-            action_type=action_type,
-            boom=boom,
-            player_index=data["playerIndex"],
-            # A temporary Card object to pass information.
-            # The actual card object will be retrieved from the game snapshot's player_hands.
-            card=Card(order=data["order"], suit_index=data["suitIndex"], rank=data["rank"])))
+
+        state.handle_action(
+            Action(
+                action_type=action_type,
+                boom=boom,
+                player_index=data["playerIndex"],
+                # A temporary Card object to pass information.
+                # The actual card object will be retrieved from the game snapshot's player_hands.
+                card=Card(
+                    order=data["order"], suit_index=data["suitIndex"], rank=data["rank"]
+                ),
+            )
+        )
 
     def decide_action(self, table_id=None):
         if table_id is None:
             table_id = self.current_table_id
 
         self.perform_action(self.games[table_id].decide_action())
-        
 
     # -----------
     # Subroutines
@@ -425,49 +436,53 @@ class HanabiClient:
     def color_clue(self, target, color):
         if self.debug is None:
             time.sleep(2)
-        self.send("action",
-                  {
-                      "tableID": self.current_table_id,
-                      "type": ACTION.COLOR_CLUE.value,
-                      "target": target,
-                      "value": color,
-                  },
+        self.send(
+            "action",
+            {
+                "tableID": self.current_table_id,
+                "type": ACTION.COLOR_CLUE.value,
+                "target": target,
+                "value": color,
+            },
         )
 
     def rank_clue(self, target, rank):
         if self.debug is None:
             time.sleep(2)
-        self.send("action",
-                  {
-                      "tableID": self.current_table_id,
-                      "type": ACTION.RANK_CLUE.value,
-                      "target": target,
-                      "value": rank,
-                  },
+        self.send(
+            "action",
+            {
+                "tableID": self.current_table_id,
+                "type": ACTION.RANK_CLUE.value,
+                "target": target,
+                "value": rank,
+            },
         )
 
     def discard_card(self, card_order):
         if self.debug is None:
             time.sleep(2)
-        self.send("action",
-                  {
-                      "tableID": self.current_table_id,
-                      "type": ACTION.DISCARD.value,
-                      "target": card_order,
-                  },
+        self.send(
+            "action",
+            {
+                "tableID": self.current_table_id,
+                "type": ACTION.DISCARD.value,
+                "target": card_order,
+            },
         )
 
     def play_card(self, card_order):
         if self.debug is None:
             time.sleep(2)
-        self.send("action",
-                  {
-                      "tableID": self.current_table_id,
-                      "type": ACTION.PLAY.value,
-                      "target": card_order,
-                  },
+        self.send(
+            "action",
+            {
+                "tableID": self.current_table_id,
+                "type": ACTION.PLAY.value,
+                "target": card_order,
+            },
         )
-    
+
     def perform_action(self, action: Action):
         if action.action_type == ACTION.PLAY.value:
             self.play_card(action.card.order)
@@ -475,6 +490,6 @@ class HanabiClient:
             self.discard_card(action.card.order)
         else:
             if action.clue.hint_type == ACTION.COLOR_CLUE.value:
-              self.color_clue(action.clue.receiver_index, action.clue.hint_value)
+                self.color_clue(action.clue.receiver_index, action.clue.hint_value)
             else:
-              self.rank_clue(action.clue.receiver_index, action.clue.hint_value)  
+                self.rank_clue(action.clue.receiver_index, action.clue.hint_value)

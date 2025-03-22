@@ -1,4 +1,5 @@
 """Conventions implementation by functions of elimination."""
+
 import json
 import jsonpickle
 import random
@@ -11,9 +12,18 @@ from src.utils import dump
 
 
 def evaluate(snapshot: Snapshot, viewer_index, player_index):
-    game_valid_actions = snapshot.get_valid_actions(viewer_index=viewer_index, player_index=player_index)
-    sorted_actions = sorted(game_valid_actions, key=lambda action: _evaluate_action(snapshot, action, viewer_index, player_index), reverse=True)
+    game_valid_actions = snapshot.get_valid_actions(
+        viewer_index=viewer_index, player_index=player_index
+    )
+    sorted_actions = sorted(
+        game_valid_actions,
+        key=lambda action: _evaluate_action(
+            snapshot, action, viewer_index, player_index
+        ),
+        reverse=True,
+    )
     return sorted_actions
+
 
 def _evaluate_action(snapshot, action, viewer_index, player_index):
     if action.action_type == ACTION.PLAY.value:
@@ -29,4 +39,3 @@ def _evaluate_action(snapshot, action, viewer_index, player_index):
     elif action.action_type == ACTION.RANK_CLUE.value:
         return 3
     return random.randint(0, 100)
-

@@ -2,9 +2,11 @@
 
 from dataclasses import dataclass, field
 
+
 @dataclass
 class Finesse:
     """A finesse."""
+
     # unified information
     rank: int = -1
     suit: int = -1

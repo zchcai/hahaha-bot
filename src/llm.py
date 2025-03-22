@@ -10,7 +10,7 @@ from src.snapshot import Snapshot
 from src.constants import ACTION
 from src.utils import dump
 
-HANABI_RULES_PROMPT="""Hanabi is a cooperative card game where players work together to create a spectacular fireworks display by playing cards in sequence by color. Follow these guidelines strictly:
+HANABI_RULES_PROMPT = """Hanabi is a cooperative card game where players work together to create a spectacular fireworks display by playing cards in sequence by color. Follow these guidelines strictly:
 
 1. Game Setup & Components
 
@@ -63,7 +63,7 @@ The final score is determined by the sum of the highest number in each completed
 
 """
 
-CONVENTION_PROMPT="""Now, to play this game in a professional way, please follow the conventions below:
+CONVENTION_PROMPT = """Now, to play this game in a professional way, please follow the conventions below:
 
 1. Terms:
 
@@ -112,6 +112,7 @@ Please do this step by step: first understand the game rules, what is allowed an
 For example, giving Number Clue 1 to Player 2 is violating Good touch principle, thus we should not do. Cluing 1 to player 3 is ok but could you find a better clue in this game opening?
 """
 
+
 def call_llm(snapshot: Snapshot, model="deepseek-r1") -> str:
     serialized = jsonpickle.encode(snapshot)
     text = json.dumps(json.loads(serialized), indent=2)
@@ -132,20 +133,27 @@ The play pile, discard pile, action history are all empty. Remaining clue tokens
         print(f"Error in calling LLM: {e}")
         return "The original prompt is: " + prompt
 
+
 # https://github.com/ChristianD37/YoutubeTutorials/blob/master/DeepSeekPython/deepseek_tutorial.ipynb
-def ask_deepseek(model, user_prompt, system_prompt='', deep_think = True, print_log = True):
-    response: ChatResponse = chat(model=model, messages=[
-        {'role' : 'system', 'content' : system_prompt},
-        {'role': 'user','content': user_prompt}
-    ])
-    response_text = response['message']['content']
-    if print_log: print(response_text)
+def ask_deepseek(model, user_prompt, system_prompt="", deep_think=True, print_log=True):
+    response: ChatResponse = chat(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+    )
+    response_text = response["message"]["content"]
+    if print_log:
+        print(response_text)
     # Extract everything inside <think>...</think> - this is the Deep Think
-    think_texts = re.findall(r'<think>(.*?)</think>', response_text, flags=re.DOTALL)
+    think_texts = re.findall(r"<think>(.*?)</think>", response_text, flags=re.DOTALL)
     # Join extracted sections (optional, if multiple <think> sections exist)
     think_texts = "\n\n".join(think_texts).strip()
     # Exclude the Deep Think, and return the response
-    clean_response= re.sub(r'<think>.*?</think>', '', response_text, flags=re.DOTALL).strip()
+    clean_response = re.sub(
+        r"<think>.*?</think>", "", response_text, flags=re.DOTALL
+    ).strip()
 
     # Return either the context, or a tuple with the context and deep think
     return clean_response if not deep_think else (clean_response, think_texts)

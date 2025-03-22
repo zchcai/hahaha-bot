@@ -1,4 +1,5 @@
 """The game snapshot of a moment."""
+
 import copy
 
 from dataclasses import dataclass, field
@@ -6,7 +7,13 @@ from dataclasses import dataclass, field
 from src.card import Card
 from src.clue import Clue
 from src.action import Action
-from src.constants import ACTION, MAX_BOOM_NUM, MAX_CLUE_NUM, MAX_RANK, MAX_CARDS_PER_RANK
+from src.constants import (
+    ACTION,
+    MAX_BOOM_NUM,
+    MAX_CLUE_NUM,
+    MAX_RANK,
+    MAX_CARDS_PER_RANK,
+)
 from src.utils import dump, printf
 
 
@@ -17,9 +24,10 @@ from src.utils import dump, printf
 @dataclass
 class Snapshot:
     """Table information."""
+
     clue_tokens: int = MAX_CLUE_NUM
     boom_tokens: int = MAX_BOOM_NUM
-    num_suits: int = 5 # default as no variant
+    num_suits: int = 5  # default as no variant
     num_remaining_cards: int = -1
     post_draw_turns: int = 0
     num_players: int = -1
@@ -47,12 +55,14 @@ class Snapshot:
         self.num_players = num_players
         self.start_player_index = start_player_index
         self.hands = hands
-        self.num_remaining_cards = sum(sum(MAX_CARDS_PER_RANK[i]) for i in range(self.num_suits))
+        self.num_remaining_cards = sum(
+            sum(MAX_CARDS_PER_RANK[i]) for i in range(self.num_suits)
+        )
         for hand in hands:
             for card in hand:
                 self.num_remaining_cards -= 1
                 self.initial_cards.append(card)
-    
+
     def next_snapshot(self, action: Action):
         """
         Return the next snapshot after taking the action.
@@ -77,6 +87,7 @@ class Snapshot:
     Get all game-valid actions for a player from a viewer's view.
     Game-valid means it is doable by the game rules, even if it means a boom.
     """
+
     def get_valid_actions(self, viewer_index: int, player_index: int) -> list:
         actions = []
         if self.is_end_status():
@@ -85,19 +96,25 @@ class Snapshot:
 
         # Playing a card is always valid.
         for card in self.hands[player_index]:
-            actions.append(Action(
-                action_type=ACTION.PLAY.value,
-                player_index=player_index,
-                card=Card(card.order)))
-        
+            actions.append(
+                Action(
+                    action_type=ACTION.PLAY.value,
+                    player_index=player_index,
+                    card=Card(card.order),
+                )
+            )
+
         # Discarding a card is valid except clue tokens are full.
         if self.clue_tokens < 8:
             for card in self.hands[player_index]:
-                actions.append(Action(
-                    action_type=ACTION.DISCARD.value,
-                    player_index=player_index,
-                    card=Card(card.order)))
-        
+                actions.append(
+                    Action(
+                        action_type=ACTION.DISCARD.value,
+                        player_index=player_index,
+                        card=Card(card.order),
+                    )
+                )
+
         # Without any clue tokens, no more clues can be given.
         if self.clue_tokens <= 0:
             return actions
@@ -120,15 +137,31 @@ class Snapshot:
                 if card.suit_index != -1 and card.suit_index not in valid_suits:
                     valid_suits.append(card.suit_index)
             for rank in valid_ranks:
-                actions.append(Action(
-                    action_type=ACTION.RANK_CLUE.value,
-                    player_index=player_index,
-                    clue=Clue(hint_type=ACTION.RANK_CLUE.value, giver_index=player_index, receiver_index=i, hint_value=rank)))
+                actions.append(
+                    Action(
+                        action_type=ACTION.RANK_CLUE.value,
+                        player_index=player_index,
+                        clue=Clue(
+                            hint_type=ACTION.RANK_CLUE.value,
+                            giver_index=player_index,
+                            receiver_index=i,
+                            hint_value=rank,
+                        ),
+                    )
+                )
             for suit in valid_suits:
-                actions.append(Action(
-                    action_type=ACTION.COLOR_CLUE.value,
-                    player_index=player_index,
-                    clue=Clue(hint_type=ACTION.COLOR_CLUE.value, giver_index=player_index, receiver_index=i, hint_value=suit)))
+                actions.append(
+                    Action(
+                        action_type=ACTION.COLOR_CLUE.value,
+                        player_index=player_index,
+                        clue=Clue(
+                            hint_type=ACTION.COLOR_CLUE.value,
+                            giver_index=player_index,
+                            receiver_index=i,
+                            hint_value=suit,
+                        ),
+                    )
+                )
         return actions
 
     def is_end_status(self) -> bool:
@@ -154,10 +187,10 @@ class Snapshot:
         for suit in range(self.num_suits):
             for rank in range(1, MAX_RANK + 1):
                 if discard_ranks[suit][rank] == MAX_CARDS_PER_RANK[suit][rank]:
-                    theoretical_max_score -= (MAX_RANK - rank + 1)
+                    theoretical_max_score -= MAX_RANK - rank + 1
                     break
         return theoretical_max_score
-    
+
     def _perform_action(self, action: Action):
         if action.action_type == ACTION.DRAW.value:
             self._perform_draw(action)
@@ -170,27 +203,36 @@ class Snapshot:
                 self._perform_play(action)
         elif action.action_type == ACTION.DISCARD.value:
             self._perform_discard(action)
-        elif action.action_type == ACTION.COLOR_CLUE.value or action.action_type == ACTION.RANK_CLUE.value:
+        elif (
+            action.action_type == ACTION.COLOR_CLUE.value
+            or action.action_type == ACTION.RANK_CLUE.value
+        ):
             self._perform_clue(action)
 
         if self.num_remaining_cards == 0:
             self.post_draw_turn += 1
-        
+
     def _perform_draw(self, action: Action):
         self.hands[action.player_index].append(action.card)
         self.num_remaining_cards -= 1
 
     def _perform_play(self, action: Action):
-        self.play_pile.append(self._remove_card_from_hand(action.player_index, action.card.order))
-    
+        self.play_pile.append(
+            self._remove_card_from_hand(action.player_index, action.card.order)
+        )
+
     def _perform_discard(self, action: Action):
-        self.discard_pile.append(self._remove_card_from_hand(action.player_index, action.card.order))
+        self.discard_pile.append(
+            self._remove_card_from_hand(action.player_index, action.card.order)
+        )
         self.clue_tokens += 1
-    
+
     def _perform_boom(self, action: Action):
-        self.discard_pile.append(self._remove_card_from_hand(action.player_index, action.card.order))
+        self.discard_pile.append(
+            self._remove_card_from_hand(action.player_index, action.card.order)
+        )
         self.boom_tokens -= 1
-    
+
     def _perform_clue(self, action: Action):
         self.clue_tokens -= 1
 

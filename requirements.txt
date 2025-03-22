@@ -1,5 +1,6 @@
 jsonpickle
 ollama
+pylint
 pytest-cov
 pytest-watch
 python-dotenv

@@ -33,35 +33,35 @@ class HanabiClient:
         self.username = username
 
         # Initialize the website command handlers (for the lobby).
-        self.command_handlers["welcome"] = self.welcome
-        self.command_handlers["warning"] = self.warning
-        self.command_handlers["error"] = self.error
-        self.command_handlers["chat"] = self.chat
-        self.command_handlers["table"] = self.table
-        self.command_handlers["tableList"] = self.table_list
-        self.command_handlers["tableGone"] = self.table_gone
-        self.command_handlers["tableStart"] = self.table_start
+        self.command_handlers["welcome"] = self._welcome
+        self.command_handlers["warning"] = self._warning
+        self.command_handlers["error"] = self._error
+        self.command_handlers["chat"] = self._chat
+        self.command_handlers["table"] = self._table
+        self.command_handlers["tableList"] = self._table_list
+        self.command_handlers["tableGone"] = self._table_gone
+        self.command_handlers["tableStart"] = self._table_start
 
         # Initialize the website command handlers (for the game).
-        self.command_handlers["init"] = self.init
-        self.command_handlers["gameAction"] = self.game_action
-        self.command_handlers["gameActionList"] = self.game_action_list
-        self.command_handlers["databaseID"] = self.database_id
+        self.command_handlers["init"] = self._init
+        self.command_handlers["gameAction"] = self._game_action
+        self.command_handlers["gameActionList"] = self._game_action_list
+        self.command_handlers["databaseID"] = self._database_id
 
         # Start the WebSocket client.
         printf('Connecting to "' + url + '".')
 
         self.ws = websocket.WebSocketApp(
             url,
-            on_message=self.websocket_message,
-            on_error=self.websocket_error,
-            on_open=self.websocket_open,
-            on_close=self.websocket_close,
+            on_message=self._websocket_message,
+            on_error=self._websocket_error,
+            on_open=self._websocket_open,
+            on_close=self._websocket_close,
             cookie=cookie,
         )
         self.ws.run_forever()
 
-    def print_debug_info(self):
+    def _print_debug_info(self):
         printf("==============DEBUG===============\n")
         dump(self.tables)
         dump(self.games[self.current_table_id])
@@ -71,7 +71,7 @@ class HanabiClient:
     # WebSocket Handlers
     # ------------------
 
-    def websocket_message(self, _, message):
+    def _websocket_message(self, _, message):
         """
         # WebSocket messages from the server come in the format of:
         # commandName {"fieldName":"value"}
@@ -103,35 +103,35 @@ class HanabiClient:
         else:
             printf('debug: ignoring command "' + command + '"')
 
-    def websocket_error(self, _, error):
+    def _websocket_error(self, _, error):
         printf("Encountered a WebSocket error:", error)
 
-    def websocket_close(self, _):
+    def _websocket_close(self, _):
         printf("WebSocket connection closed.")
 
-    def websocket_open(self, _):
+    def _websocket_open(self, _):
         printf("Successfully established WebSocket connection.")
 
     # --------------------------------
     # Website Command Handlers (Lobby)
     # --------------------------------
 
-    def welcome(self, data):
+    def _welcome(self, data):
         # The "welcome" message is the first message that the server sends us
         # once we have established a connection. It contains our username,
         # settings, and so forth.
         self.username = data["username"]
 
-    def error(self, data):
+    def _error(self, data):
         # Either we have done something wrong, or something has gone wrong on
         # the server.
         printf(data)
 
-    def warning(self, data):
+    def _warning(self, data):
         # We have done something wrong.
         printf(data)
 
-    def chat(self, data):
+    def _chat(self, data):
         # We only care about private messages.
         if data["recipient"] != self.username:
             return
@@ -146,34 +146,34 @@ class HanabiClient:
         command = result[0]
 
         if command == "join":
-            self.chat_join(data)
+            self._chat_join(data)
         elif command == "please":
             try:
-                self.decide_action(self.current_table_id)
+                self._decide_action(self.current_table_id)
             except Exception as e:
                 printf("Error when deciding action: ", e)
         elif command == "debug":
-            self.print_debug_info()
+            self._print_debug_info()
         elif command == "create":
-            self.chat_create()
+            self._chat_create()
         elif command == "terminate":
-            self.chat_terminate()
+            self._chat_terminate()
         elif command == "invite":
-            self.chat_invite()
+            self._chat_invite()
         elif command == "start":
-            self.chat_start()
+            self._chat_start()
         else:
             msg = "That is not a valid command."
-            self.chat_reply(msg, data["who"])
+            self._chat_reply(msg, data["who"])
 
-    def chat_invite(self):
+    def _chat_invite(self):
         for i in range(1, 5):
             name = "robot" + str(i)
             if name != self.username:
-                self.chat_reply("/join", name)
+                self._chat_reply("/join", name)
 
-    def chat_create(self):
-        self.send(
+    def _chat_create(self):
+        self._send(
             "tableCreate",
             {
                 "name": "test game",
@@ -183,29 +183,29 @@ class HanabiClient:
             },
         )
 
-    def chat_start(self):
+    def _chat_start(self):
         table_id = self.current_table_id
         for table in self.tables.values():
             if not table["running"] and self.username in table["players"]:
                 table_id = table["id"]
                 break
-        self.send(
+        self._send(
             "tableStart",
             {
                 "tableID": table_id,
             },
         )
 
-    def chat_terminate(self):
-        for table_id in self.tables.keys():
-            self.send(
+    def _chat_terminate(self):
+        for table_id in self.tables:
+            self._send(
                 "tableTerminate",
                 {
                     "tableID": table_id,
                 },
             )
 
-    def chat_join(self, data):
+    def _chat_join(self, data):
         # Someone sent a private message to the bot and requested that we join
         # their game. Find the table that the current user is currently in.
         table_id = None
@@ -217,7 +217,7 @@ class HanabiClient:
             if data["who"] in table["players"]:
                 if len(table["players"]) == 6:
                     msg = "Your game is full; no room for me to join the game."
-                    self.chat_reply(msg, data["who"])
+                    self._chat_reply(msg, data["who"])
                     return
 
                 table_id = table["id"]
@@ -225,10 +225,10 @@ class HanabiClient:
 
         if table_id is None:
             msg = "Please create a table first before requesting that I join your game."
-            self.chat_reply(msg, data["who"])
+            self._chat_reply(msg, data["who"])
             return
 
-        self.send(
+        self._send(
             "tableJoin",
             {
                 "tableID": table_id,
@@ -237,23 +237,23 @@ class HanabiClient:
         )
         self.current_table_id = table_id
 
-    def table(self, data):
+    def _table(self, data):
         self.tables[data["id"]] = data
 
-    def table_list(self, data_list):
+    def _table_list(self, data_list):
         for data in data_list:
-            self.table(data)
+            self._table(data)
 
-    def table_gone(self, data):
+    def _table_gone(self, data):
         del self.tables[data["tableID"]]
 
-    def table_start(self, data):
+    def _table_start(self, data):
         # The server has told us that a game that we are in is starting. So,
         # the next step is to request some high-level information about the
         # game (e.g. number of players). The server will respond with an "init"
         # command.
         self.current_table_id = data["tableID"]
-        self.send(
+        self._send(
             "getGameInfo1",
             {
                 "tableID": data["tableID"],
@@ -264,7 +264,7 @@ class HanabiClient:
     # Website Command Handlers (Game)
     # -------------------------------
 
-    def init(self, data):
+    def _init(self, data):
         # At the beginning of the game, the server sends us some high-level
         # data about the game, including the names and ordering of the players
         # at the table.
@@ -288,21 +288,21 @@ class HanabiClient:
             game.num_suits = 5
         else:
             printf("error: Variant not supported: " + data)
-            NotImplementedError("Variant not supported")
+            raise NotImplementedError("Variant not supported")
 
         # At this point, the JavaScript client would have enough information to
         # load and display the game UI. For our purposes, we do not need to
         # load a UI, so we can just jump directly to the next step. Now, we
         # request the specific actions that have taken place thus far in the
         # game (which will come in a "gameActionList").
-        self.send(
+        self._send(
             "getGameInfo2",
             {
                 "tableID": data["tableID"],
             },
         )
 
-    def game_action(self, data):
+    def _game_action(self, data):
         game = self.games[data["tableID"]]
 
         # We just received a new action for an ongoing game.
@@ -314,9 +314,9 @@ class HanabiClient:
             post_turn != pre_turn
             and game.current_player_index() == game.our_player_index
         ):
-            self.decide_action(data["tableID"])
+            self._decide_action(data["tableID"])
 
-    def game_action_list(self, data):
+    def _game_action_list(self, data):
         game = self.games[data["tableID"]]
 
         # We just received a list of all of the actions that have occurred thus
@@ -327,7 +327,7 @@ class HanabiClient:
 
         # Let the server know that we have finished "loading the UI" (so that
         # our name does not appear as red / disconnected).
-        self.send(
+        self._send(
             "loaded",
             {
                 "tableID": data["tableID"],
@@ -336,13 +336,13 @@ class HanabiClient:
 
         # Start the game if we are the first player.
         if game.current_player_index() == game.our_player_index:
-            self.decide_action(data["tableID"])
+            self._decide_action(data["tableID"])
 
-    def database_id(self, data):
+    def _database_id(self, data):
         # Games are transformed into shared replays after they are completed.
         # The server sends a "databaseID" message when the game has ended. Use
         # this as a signal to leave the shared replay.
-        self.send(
+        self._send(
             "tableUnattend",
             {
                 "tableID": data["tableID"],
@@ -408,7 +408,7 @@ class HanabiClient:
             )
         )
 
-    def decide_action(self, table_id=None):
+    def _decide_action(self, table_id=None):
         if table_id is None:
             table_id = self.current_table_id
 
@@ -417,8 +417,8 @@ class HanabiClient:
     # -----------
     # Subroutines
     # -----------
-    def chat_reply(self, message, recipient):
-        self.send(
+    def _chat_reply(self, message, recipient):
+        self._send(
             "chatPM",
             {
                 "msg": message,
@@ -427,16 +427,16 @@ class HanabiClient:
             },
         )
 
-    def send(self, command, data):
+    def _send(self, command, data):
         if not isinstance(data, dict):
             data = {}
         self.ws.send(command + " " + json.dumps(data))
         printf(f'debug: sent command "{command}": {data}')
 
-    def color_clue(self, target, color):
+    def _color_clue(self, target, color):
         if self.debug is None:
             time.sleep(2)
-        self.send(
+        self._send(
             "action",
             {
                 "tableID": self.current_table_id,
@@ -446,10 +446,10 @@ class HanabiClient:
             },
         )
 
-    def rank_clue(self, target, rank):
+    def _rank_clue(self, target, rank):
         if self.debug is None:
             time.sleep(2)
-        self.send(
+        self._send(
             "action",
             {
                 "tableID": self.current_table_id,
@@ -459,10 +459,10 @@ class HanabiClient:
             },
         )
 
-    def discard_card(self, card_order):
+    def _discard_card(self, card_order):
         if self.debug is None:
             time.sleep(2)
-        self.send(
+        self._send(
             "action",
             {
                 "tableID": self.current_table_id,
@@ -471,10 +471,10 @@ class HanabiClient:
             },
         )
 
-    def play_card(self, card_order):
+    def _play_card(self, card_order):
         if self.debug is None:
             time.sleep(2)
-        self.send(
+        self._send(
             "action",
             {
                 "tableID": self.current_table_id,
@@ -484,12 +484,13 @@ class HanabiClient:
         )
 
     def perform_action(self, action: Action):
+        """Send an action to server."""
         if action.action_type == ACTION.PLAY.value:
-            self.play_card(action.card.order)
+            self._play_card(action.card.order)
         elif action.action_type == ACTION.DISCARD.value:
-            self.discard_card(action.card.order)
+            self._discard_card(action.card.order)
         else:
             if action.clue.hint_type == ACTION.COLOR_CLUE.value:
-                self.color_clue(action.clue.receiver_index, action.clue.hint_value)
+                self._color_clue(action.clue.receiver_index, action.clue.hint_value)
             else:
-                self.rank_clue(action.clue.receiver_index, action.clue.hint_value)
+                self._rank_clue(action.clue.receiver_index, action.clue.hint_value)

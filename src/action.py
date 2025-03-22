@@ -1,6 +1,6 @@
 """The metadata for one action."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from src.card import Card
 from src.clue import Clue

@@ -32,10 +32,10 @@ def _evaluate_action(snapshot, action, viewer_index, player_index):
         # For half-known cards, check whether it is playable.
         # For unknown cards, check the confidence of playable.
         return 0
-    elif action.action_type == ACTION.DISCARD.value:
+    if action.action_type == ACTION.DISCARD.value:
         return 1
-    elif action.action_type == ACTION.COLOR_CLUE.value:
+    if action.action_type == ACTION.COLOR_CLUE.value:
         return 2
-    elif action.action_type == ACTION.RANK_CLUE.value:
+    if action.action_type == ACTION.RANK_CLUE.value:
         return 3
     return random.randint(0, 100)

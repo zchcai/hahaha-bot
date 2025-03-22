@@ -82,10 +82,7 @@ class Game:
                 self.handle_play(action)
         elif action.action_type == ACTION.DISCARD.value:
             self.handle_discard(action)
-        elif (
-            action.action_type == ACTION.COLOR_CLUE.value
-            or action.action_type == ACTION.RANK_CLUE.value
-        ):
+        elif action.action_type in (ACTION.COLOR_CLUE.value, ACTION.RANK_CLUE.value):
             self.handle_clue(action)
 
         if len(self.snapshot_history) > 0 and action.action_type != ACTION.DRAW.value:
@@ -778,10 +775,9 @@ class Game:
             if len(finesses) == 0:
                 # No finesse paths touched either, then not playable.
                 return False
-            else:
-                # TODO: finesse handling.
-                # Now if it is not empty, then it is playable.
-                return True
+            # TODO: finesse handling.
+            # Now if it is not empty, then it is playable.
+            return True
 
         # Firstly check the latest clue whether play or not.
         # If it never becomes a focus, don't play.

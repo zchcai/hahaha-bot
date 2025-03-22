@@ -203,14 +203,11 @@ class Snapshot:
                 self._perform_play(action)
         elif action.action_type == ACTION.DISCARD.value:
             self._perform_discard(action)
-        elif (
-            action.action_type == ACTION.COLOR_CLUE.value
-            or action.action_type == ACTION.RANK_CLUE.value
-        ):
+        elif action.action_type in (ACTION.COLOR_CLUE.value, ACTION.RANK_CLUE.value):
             self._perform_clue(action)
 
         if self.num_remaining_cards == 0:
-            self.post_draw_turn += 1
+            self.post_draw_turns += 1
 
     def _perform_draw(self, action: Action):
         self.hands[action.player_index].append(action.card)

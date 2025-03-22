@@ -7,3 +7,23 @@ addopts = "--cov --cov-report=lcov:lcov.info --cov-report=term"
 pythonpath = [
     ".", "src",
 ]
+
+[tool.pylint.MASTER]
+ignore-paths = '^.venv/.*$'
+
+[tool.pylint."messages control"]
+# Only show warnings with the listed confidence levels. Leave empty to show all.
+# Valid levels: HIGH, CONTROL_FLOW, INFERENCE, INFERENCE_FAILURE, UNDEFINED.
+confidence = ["HIGH", "INFERENCE"]
+
+disable = [
+  "broad-exception-caught",
+  "missing-class-docstring",
+  "missing-function-docstring",
+  "missing-module-docstring",
+  "unused-argument",
+]
+
+[tool.pylint.miscellaneous]
+# List of note tags to take in consideration, separated by a comma.
+notes = ["TODO"]

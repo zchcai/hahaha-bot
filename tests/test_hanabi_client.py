@@ -74,7 +74,7 @@ def get_default_client(game_state: Game = None):
         client.games[FAKE_TABLE_ID] = get_default_game_state()
     else:
         client.games[FAKE_TABLE_ID] = game_state
-    client.send = MagicMock()
+    client._send = MagicMock()
     return client
 
 
@@ -318,9 +318,9 @@ class TestDecideAction(unittest.TestCase):
         ]
         client = get_default_client(state)
 
-        client.decide_action()
+        client._decide_action()
 
-        client.send.assert_called_once_with(
+        client._send.assert_called_once_with(
             "action", {"tableID": FAKE_TABLE_ID, "type": ACTION.PLAY.value, "target": 1}
         )
 
@@ -364,9 +364,9 @@ class TestDecideAction(unittest.TestCase):
 
         client = get_default_client(state)
 
-        client.decide_action()
+        client._decide_action()
 
-        client.send.assert_called_once_with(
+        client._send.assert_called_once_with(
             "action", {"tableID": FAKE_TABLE_ID, "type": ACTION.PLAY.value, "target": 2}
         )
 
@@ -389,9 +389,9 @@ class TestDecideAction(unittest.TestCase):
         ]
         client = get_default_client(state)
 
-        client.decide_action()
+        client._decide_action()
 
-        client.send.assert_called_once_with(
+        client._send.assert_called_once_with(
             "action", {"tableID": FAKE_TABLE_ID, "type": ACTION.PLAY.value, "target": 1}
         )
 
@@ -410,9 +410,9 @@ class TestDecideAction(unittest.TestCase):
         ]
         client = get_default_client(state)
 
-        client.decide_action()
+        client._decide_action()
 
-        client.send.assert_called_once_with(
+        client._send.assert_called_once_with(
             "action",
             {
                 "tableID": FAKE_TABLE_ID,
@@ -434,9 +434,9 @@ class TestDecideAction(unittest.TestCase):
         ]
         client = get_default_client(state)
 
-        client.decide_action()
+        client._decide_action()
 
-        client.send.assert_called_once_with(
+        client._send.assert_called_once_with(
             "action", {"tableID": FAKE_TABLE_ID, "type": ACTION.PLAY.value, "target": 1}
         )
 
@@ -463,9 +463,9 @@ class TestDecideAction(unittest.TestCase):
             )
         client = get_default_client(state)
 
-        client.decide_action(FAKE_TABLE_ID)
+        client._decide_action(FAKE_TABLE_ID)
 
-        client.send.assert_called_once_with(
+        client._send.assert_called_once_with(
             "action", {"tableID": FAKE_TABLE_ID, "type": ACTION.PLAY.value, "target": 0}
         )
 
@@ -478,9 +478,9 @@ class TestDecideAction(unittest.TestCase):
         state.clue_tokens = 0
         client = get_default_client(state)
 
-        client.decide_action(FAKE_TABLE_ID)
+        client._decide_action(FAKE_TABLE_ID)
 
-        client.send.assert_called_once_with(
+        client._send.assert_called_once_with(
             "action",
             {"tableID": FAKE_TABLE_ID, "type": ACTION.DISCARD.value, "target": 0},
         )
@@ -500,9 +500,9 @@ class TestDecideAction(unittest.TestCase):
         ]
         client = get_default_client(state)
 
-        client.decide_action(FAKE_TABLE_ID)
+        client._decide_action(FAKE_TABLE_ID)
 
-        client.send.assert_called_once_with(
+        client._send.assert_called_once_with(
             "action",
             {"tableID": FAKE_TABLE_ID, "type": ACTION.DISCARD.value, "target": 1},
         )
@@ -539,9 +539,9 @@ class TestDecideAction(unittest.TestCase):
         state.player_hands[0][2].rank = 2
         client = get_default_client(state)
 
-        client.decide_action(FAKE_TABLE_ID)
+        client._decide_action(FAKE_TABLE_ID)
 
-        client.send.assert_called_once_with(
+        client._send.assert_called_once_with(
             "action",
             {"tableID": FAKE_TABLE_ID, "type": ACTION.DISCARD.value, "target": 2},
         )
@@ -555,9 +555,9 @@ class TestDecideAction(unittest.TestCase):
         state.player_hands[1][3].rank = 1
         client = get_default_client(state)
 
-        client.decide_action(FAKE_TABLE_ID)
+        client._decide_action(FAKE_TABLE_ID)
 
-        client.send.assert_called_once_with(
+        client._send.assert_called_once_with(
             "action",
             {
                 "tableID": FAKE_TABLE_ID,
@@ -636,9 +636,9 @@ class TestDecideAction(unittest.TestCase):
         ]
         client = get_default_client(state)
 
-        client.decide_action(FAKE_TABLE_ID)
+        client._decide_action(FAKE_TABLE_ID)
 
-        client.send.assert_called_once_with(
+        client._send.assert_called_once_with(
             "action", {"tableID": FAKE_TABLE_ID, "type": ACTION.PLAY.value, "target": 3}
         )
 

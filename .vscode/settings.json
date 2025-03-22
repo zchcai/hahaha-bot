@@ -21,4 +21,6 @@
   ],
   "python.testing.pytestEnabled": false,
   "python.testing.unittestEnabled": true,
+  "pylint.enabled": true,
+  "pylint.importStrategy": "fromEnvironment",
 }

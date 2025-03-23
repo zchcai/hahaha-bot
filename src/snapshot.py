@@ -146,6 +146,9 @@ class Snapshot:
                             giver_index=player_index,
                             receiver_index=i,
                             hint_value=rank,
+                            touched_orders=[
+                                _c.order for _c in cards if _c.rank == rank
+                            ],
                         ),
                     )
                 )
@@ -159,6 +162,9 @@ class Snapshot:
                             giver_index=player_index,
                             receiver_index=i,
                             hint_value=suit,
+                            touched_orders=[
+                                _c.order for _c in cards if _c.suit_index == suit
+                            ],
                         ),
                     )
                 )
@@ -234,21 +240,32 @@ class Snapshot:
         self.clue_tokens -= 1
 
     def _remove_card_from_hand(self, player_index, order):
-        hand = self.hands[player_index]
-
-        card_index = -1
-        for i, card in enumerate(hand):
-            if card.order == order:
-                card_index = i
-                break
-
-        if card_index == -1:
-            printf(
-                "error: unable to find card with order " + str(order) + " in "
-                "the hand of player " + str(player_index)
-            )
+        card_index = self._get_card_slot_from_hand(
+            player_index=player_index, order=order
+        )
+        if card_index == None:
             return None
 
+        hand = self.hands[player_index]
         card = copy.deepcopy(hand[card_index])
         del hand[card_index]
         return card
+
+    def _get_card_slot_from_hand(self, player_index, order):
+        for i, card in enumerate(self.hands[player_index]):
+            if card.order == order:
+                return i
+        printf(
+            "error: unable to find card with order " + str(order) + " in "
+            "the hand of player " + str(player_index)
+        )
+        return None
+
+    def get_card_from_hand(self, player_index, order):
+        """Get a card from a player's hand based on card order No."""
+        card_index = self._get_card_slot_from_hand(
+            player_index=player_index, order=order
+        )
+        if card_index == None:
+            return None
+        return self.hands[player_index][card_index]

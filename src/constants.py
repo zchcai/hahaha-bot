@@ -17,6 +17,25 @@ class ACTION(Enum):
     DRAW = 11
 
 
+class Status(Enum):
+    """A overall status for a card."""
+
+    UNSPECIFIED = 0
+
+    # Immediately actionable.
+    PLAYABLE_KNOWN_BY_PLAYER = auto()  # immediately playable
+    TRASH_KNOWN_BY_PLAYER = auto()  # immediately discardable
+
+    # Pending actionable.
+    DIRECT_FINESSED = auto()  # directly touched by a Play Clue
+    INDIRECT_FINESSED = auto()  # indirectly touched by a Play Clue
+
+    # Saving.
+    CLUED_SAVED = auto()  # touched, active save
+    GOOD_TOUCH_SAVED = auto()  # touched, passive save from Good Touch Principle (GTP)
+    USEFUL = auto()  # untouched, from post-analysis (e.g., trash clue at another card)
+
+
 # The initial amount of boom tokens. When it reaches to 0, game ends with failure.
 MAX_BOOM_NUM = 3
 

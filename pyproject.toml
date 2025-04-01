@@ -21,7 +21,6 @@ disable = [
   "missing-class-docstring",
   "missing-function-docstring",
   "missing-module-docstring",
-  "unused-argument",
 ]
 
 [tool.pylint.miscellaneous]

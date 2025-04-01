@@ -3,6 +3,7 @@
 import copy
 
 from dataclasses import dataclass, field
+from typing import Optional
 
 from src.card import Card
 from src.clue import Clue
@@ -13,7 +14,9 @@ from src.constants import (
     MAX_CLUE_NUM,
     MAX_RANK,
     MAX_CARDS_PER_RANK,
+    Status,
 )
+from src.finesse import Finesse
 from src.utils import dump, printf
 
 
@@ -63,9 +66,8 @@ class Snapshot:
                 self.num_remaining_cards -= 1
                 self.initial_cards.append(card)
 
-    def next_snapshot(self, action: Action):
-        """
-        Return the next snapshot after taking the action.
+    def next_snapshot(self, action: Action, viewer_index=None):
+        """Return the next snapshot after taking the action.
         The action is assumed to be game-valid.
         """
         next_snapshot = Snapshot(
@@ -79,16 +81,14 @@ class Snapshot:
             initial_cards=copy.deepcopy(self.initial_cards),
             action_history=copy.deepcopy(self.action_history),
         )
-        next_snapshot._perform_action(action)
+        next_snapshot._perform_action(action, viewer_index)
         next_snapshot.action_history.append(action)
         return next_snapshot
 
-    """
-    Get all game-valid actions for a player from a viewer's view.
-    Game-valid means it is doable by the game rules, even if it means a boom.
-    """
-
     def get_valid_actions(self, viewer_index: int, player_index: int) -> list:
+        """Get all game-valid actions for a player from a viewer's view.
+        Game-valid means it is doable by the game rules, even if it means a boom.
+        """
         actions = []
         if self.is_end_status():
             # Game is over, no more actions allowed.
@@ -105,7 +105,7 @@ class Snapshot:
             )
 
         # Discarding a card is valid except clue tokens are full.
-        if self.clue_tokens < 8:
+        if self.clue_tokens < MAX_CLUE_NUM:
             for card in self.hands[player_index]:
                 actions.append(
                     Action(
@@ -187,9 +187,7 @@ class Snapshot:
         if len(self.discard_pile) == 0:
             return theoretical_max_score
 
-        discard_ranks = [[0] * (MAX_RANK + 1) for _ in range(self.num_suits)]
-        for card in self.discard_pile:
-            discard_ranks[card.suit_index][card.rank] += 1
+        discard_ranks = self.discard_table()
         for suit in range(self.num_suits):
             for rank in range(1, MAX_RANK + 1):
                 if discard_ranks[suit][rank] == MAX_CARDS_PER_RANK[suit][rank]:
@@ -197,47 +195,137 @@ class Snapshot:
                     break
         return theoretical_max_score
 
-    def _perform_action(self, action: Action):
+    def _perform_action(self, action: Action, viewer_index=None):
         if action.action_type == ACTION.DRAW.value:
-            self._perform_draw(action)
+            self._perform_draw(action, viewer_index)
             return
 
         if action.action_type == ACTION.PLAY.value:
             if action.boom:
-                self._perform_boom(action)
+                self._perform_boom(action, viewer_index)
             else:
-                self._perform_play(action)
+                self._perform_play(action, viewer_index)
         elif action.action_type == ACTION.DISCARD.value:
-            self._perform_discard(action)
+            self._perform_discard(action, viewer_index)
         elif action.action_type in (ACTION.COLOR_CLUE.value, ACTION.RANK_CLUE.value):
-            self._perform_clue(action)
+            self._perform_clue(action, viewer_index)
 
         if self.num_remaining_cards == 0:
             self.post_draw_turns += 1
 
-    def _perform_draw(self, action: Action):
+    def _perform_draw(self, action: Action, viewer_index=None):
         self.hands[action.player_index].append(action.card)
         self.num_remaining_cards -= 1
+        if viewer_index is None:
+            viewer_index = action.player_index
 
-    def _perform_play(self, action: Action):
+    def _perform_play(self, action: Action, viewer_index=None):
         self.play_pile.append(
             self._remove_card_from_hand(action.player_index, action.card.order)
         )
+        if viewer_index is None:
+            viewer_index = action.player_index
 
-    def _perform_discard(self, action: Action):
+    def _perform_discard(self, action: Action, viewer_index=None):
         self.discard_pile.append(
             self._remove_card_from_hand(action.player_index, action.card.order)
         )
         self.clue_tokens += 1
+        if viewer_index is None:
+            viewer_index = action.player_index
 
-    def _perform_boom(self, action: Action):
+    def _perform_boom(self, action: Action, viewer_index=None):
         self.discard_pile.append(
             self._remove_card_from_hand(action.player_index, action.card.order)
         )
         self.boom_tokens -= 1
+        if viewer_index is None:
+            viewer_index = action.player_index
 
-    def _perform_clue(self, action: Action):
+    def _perform_clue(self, action: Action, viewer_index=None):
+        # DO_NOT_MODIFY_BEGIN
         self.clue_tokens -= 1
+        # DO_NOT_MODIFY_END
+
+        clue = action.clue
+        receiver_cards = self.hands[clue.receiver_index]
+        clued_cards = [  # from draw slot to discard slot
+            self.get_card_from_hand(clue.receiver_index, _order)
+            for _order in sorted(clue.touched_orders, reverse=True)
+        ]
+        double_clued_cards = self._double_clued_cards(clue)
+        hinted_table = self.hints_table()
+        if viewer_index is None:
+            viewer_index = clue.receiver_index
+
+        # Handle Rank Clue 1.
+        if clue.hint_type == ACTION.RANK_CLUE.value and clue.hint_value == 1:
+            # Check how many 1s left to clue.
+            num_left_1s = self.num_suits
+            # Remove played 1s.
+            for rank_per_suit in self.played_ranks():
+                if rank_per_suit >= 1:
+                    num_left_1s -= 1
+            # Remove clued 1s.
+            for suit_index in range(self.num_suits):
+                if hinted_table[suit_index][1] > 0:
+                    num_left_1s -= 1
+            # From draw slot to discard slot, mark playable notes.
+            if num_left_1s < 1:
+                # TODO: handle trash clue: (1) no useful 1s to clue (2) the leftmost is a trash 1
+                # And the discard slot is useful.
+                for card_1 in clued_cards:
+                    card_1.status = Status.TRASH_KNOWN_BY_PLAYER
+                return
+            tagged = 0
+            for _ in range(min(num_left_1s, len(clued_cards))):
+                clued_cards[tagged].status = Status.PLAYABLE_KNOWN_BY_PLAYER
+                tagged += 1
+            if tagged < len(clued_cards):
+                clued_cards[tagged].status = Status.TRASH_KNOWN_BY_PLAYER
+
+        # Handle Non-Black Color Clue. (Play Clue)
+        if clue.hint_type == ACTION.COLOR_CLUE.value and clue.hint_value != 5:
+            # Check remaining possible ranks within this suit.
+            possibility = [True] * (MAX_RANK + 1)
+            possibility[0] = False
+            # Remove played ranks.
+            for rank in range(1, self.played_ranks()[clue.hint_value] + 1):
+                possibility[rank] = False
+            # Remove touched cards.
+            for rank in range(1, MAX_RANK + 1):
+                if hinted_table[clue.hint_value][rank] > 0:
+                    possibility[rank] = False
+
+            next_missing_rank = 6
+            for i in range(1, MAX_RANK):
+                if possibility[i]:
+                    next_missing_rank = i
+                    break
+            if next_missing_rank > 5:
+                # Trash clue.
+                for card in clued_cards:
+                    card.status = Status.TRASH_KNOWN_BY_PLAYER
+            else:
+                for i, card in enumerate(clued_cards):
+                    if i == 0:
+                        card.status = Status.DIRECT_FINESSED
+                        card.add_finesse(
+                            finesse=Finesse(
+                                rank=next_missing_rank,
+                                suit=clue.hint_value,
+                            )
+                        )
+                    else:
+                        card.status = Status.GOOD_TOUCH_SAVED
+
+    def _double_clued_cards(self, clue):
+        double_clued = []
+        for card in self.hands[clue.receiver_index]:
+            if card.order in clue.touched_orders and len(card.clues) > 0:
+                # There is a double clued card now.
+                double_clued.append(card)
+        return double_clued
 
     def _remove_card_from_hand(self, player_index, order):
         card_index = self._get_card_slot_from_hand(
@@ -261,7 +349,7 @@ class Snapshot:
         )
         return None
 
-    def get_card_from_hand(self, player_index, order):
+    def get_card_from_hand(self, player_index, order) -> Optional[Card]:
         """Get a card from a player's hand based on card order No."""
         card_index = self._get_card_slot_from_hand(
             player_index=player_index, order=order
@@ -269,3 +357,34 @@ class Snapshot:
         if card_index == None:
             return None
         return self.hands[player_index][card_index]
+
+    def hints_table(self, viewer_index=None):
+        """Conclude current hints table, where it means which card is clued or not."""
+        hints_table = [[0] * (MAX_RANK + 1) for _ in range(self.num_suits)]
+        for player_index, player_hands in enumerate(self.hands):
+            for card in player_hands:
+                if card.status == Status.UNSPECIFIED:
+                    continue
+                if player_index == viewer_index:
+                    # The truth of the card is not revealed.
+                    continue
+                if card.suit_index != -1 and card.rank != -1:
+                    hints_table[card.suit_index][card.rank] += 1
+                else:
+                    # TODO: This card is not revealed from our player.
+                    continue
+        return hints_table
+
+    def discard_table(self):
+        """The current discarded cards."""
+        discard_table = [[0] * (MAX_RANK + 1) for _ in range(self.num_suits)]
+        for card in self.discard_pile:
+            discard_table[card.suit_index][card.rank] += 1
+        return discard_table
+
+    def played_ranks(self):
+        """The current discarded cards."""
+        played = [0] * (self.num_suits + 1)
+        for card in self.play_pile:
+            played[card.suit_index] = max(card.rank, played[card.suit_index])
+        return played

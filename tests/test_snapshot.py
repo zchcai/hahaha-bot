@@ -4,7 +4,7 @@ import unittest
 from src.action import Action
 from src.card import Card
 from src.clue import Clue
-from src.constants import ACTION
+from src.constants import ACTION, Status, MAX_RANK
 from src.snapshot import Snapshot
 from src.utils import dump
 
@@ -92,6 +92,7 @@ class TestSnapshot(unittest.TestCase):
                     giver_index=0,
                     receiver_index=3,
                     hint_value=3,
+                    touched_orders=[13],
                 ),
             )
         )
@@ -213,6 +214,167 @@ class TestSnapshot(unittest.TestCase):
             )
         )
         assert s.is_end_status()  # 22/22
+
+    def test_perform_clue_1s(self):
+        s = get_default_snapshot()
+
+        s = s.next_snapshot(
+            Action(
+                action_type=ACTION.RANK_CLUE.value,
+                player_index=0,
+                clue=Clue(
+                    hint_type=ACTION.RANK_CLUE.value,
+                    hint_value=1,
+                    giver_index=0,
+                    receiver_index=3,
+                    touched_orders=[14, 12],
+                ),
+            )
+        )
+
+        assert s.get_card_from_hand(3, 14).status == Status.PLAYABLE_KNOWN_BY_PLAYER
+        assert s.get_card_from_hand(3, 12).status == Status.PLAYABLE_KNOWN_BY_PLAYER
+
+    def test_perform_clue_1s_only_leftmost_playable(self):
+        s = get_default_snapshot()
+        s.play_pile.append(Card(rank=1, suit_index=0))
+        s.play_pile.append(Card(rank=1, suit_index=2))
+        s.play_pile.append(Card(rank=1, suit_index=3))
+        s.play_pile.append(Card(rank=1, suit_index=4))
+
+        s = s.next_snapshot(
+            Action(
+                action_type=ACTION.RANK_CLUE.value,
+                player_index=0,
+                clue=Clue(
+                    hint_type=ACTION.RANK_CLUE.value,
+                    hint_value=1,
+                    giver_index=0,
+                    receiver_index=3,
+                    touched_orders=[14, 12],
+                ),
+            )
+        )
+
+        assert s.get_card_from_hand(3, 14).status == Status.PLAYABLE_KNOWN_BY_PLAYER
+        assert s.get_card_from_hand(3, 12).status == Status.TRASH_KNOWN_BY_PLAYER
+
+    def test_perform_clue_1s_good_touch(self):
+        s = get_default_snapshot()
+        s.play_pile.append(Card(rank=1, suit_index=0))
+        s.play_pile.append(Card(rank=1, suit_index=2))
+        s.play_pile.append(Card(rank=1, suit_index=4))
+        s.get_card_from_hand(1, 7).status = Status.PLAYABLE_KNOWN_BY_PLAYER
+
+        s = s.next_snapshot(
+            Action(
+                action_type=ACTION.RANK_CLUE.value,
+                player_index=0,
+                clue=Clue(
+                    hint_type=ACTION.RANK_CLUE.value,
+                    hint_value=1,
+                    giver_index=0,
+                    receiver_index=3,
+                    touched_orders=[14, 12],
+                ),
+            )
+        )
+
+        assert s.get_card_from_hand(3, 14).status == Status.PLAYABLE_KNOWN_BY_PLAYER
+        assert s.get_card_from_hand(3, 12).status == Status.TRASH_KNOWN_BY_PLAYER
+
+    def test_perform_clue_1s_trash_clue(self):
+        s = get_default_snapshot()
+        for i in range(MAX_RANK):
+            s.play_pile.append(Card(rank=1, suit_index=i))
+
+        s = s.next_snapshot(
+            Action(
+                action_type=ACTION.RANK_CLUE.value,
+                player_index=0,
+                clue=Clue(
+                    hint_type=ACTION.RANK_CLUE.value,
+                    hint_value=1,
+                    giver_index=0,
+                    receiver_index=3,
+                    touched_orders=[14, 12],
+                ),
+            )
+        )
+
+        assert s.get_card_from_hand(3, 14).status == Status.TRASH_KNOWN_BY_PLAYER
+        assert s.get_card_from_hand(3, 12).status == Status.TRASH_KNOWN_BY_PLAYER
+
+    def test_perform_clue_color(self):
+        s = get_default_snapshot()
+
+        s = s.next_snapshot(
+            action=Action(
+                action_type=ACTION.COLOR_CLUE.value,
+                player_index=0,
+                clue=Clue(
+                    hint_type=ACTION.COLOR_CLUE.value,
+                    hint_value=2,
+                    giver_index=0,
+                    receiver_index=3,
+                    touched_orders=[12],
+                ),
+            ),
+            viewer_index=3,
+        )
+
+        touched_card = s.get_card_from_hand(3, 12)
+        assert touched_card.status == Status.DIRECT_FINESSED
+        assert touched_card.finesses[0].rank == 1
+        assert touched_card.finesses[0].suit == 2
+
+    def test_perform_clue_color_trash(self):
+        s = get_default_snapshot()
+        for i in range(1, MAX_RANK + 1):
+            s.play_pile.append(Card(rank=i, suit_index=0))
+
+        s = s.next_snapshot(
+            action=Action(
+                action_type=ACTION.COLOR_CLUE.value,
+                player_index=0,
+                clue=Clue(
+                    hint_type=ACTION.COLOR_CLUE.value,
+                    hint_value=0,
+                    giver_index=0,
+                    receiver_index=3,
+                    touched_orders=[15],
+                ),
+            ),
+            viewer_index=3,
+        )
+
+        touched_card = s.get_card_from_hand(3, 15)
+        assert touched_card.status == Status.TRASH_KNOWN_BY_PLAYER
+
+    def test_perform_clue_color_next_missing_rank(self):
+        s = get_default_snapshot()
+        s.hands[2][1].status = Status.PLAYABLE_KNOWN_BY_PLAYER
+        s.hands[2][2].status = Status.PLAYABLE_KNOWN_BY_PLAYER
+
+        s = s.next_snapshot(
+            action=Action(
+                action_type=ACTION.COLOR_CLUE.value,
+                player_index=0,
+                clue=Clue(
+                    hint_type=ACTION.COLOR_CLUE.value,
+                    hint_value=0,
+                    giver_index=0,
+                    receiver_index=3,
+                    touched_orders=[15],
+                ),
+            ),
+            viewer_index=3,
+        )
+
+        touched_card = s.get_card_from_hand(3, 15)
+        assert touched_card.status == Status.DIRECT_FINESSED
+        assert touched_card.finesses[0].rank == 3
+        assert touched_card.finesses[0].suit == 0
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ import copy
 
 from dataclasses import dataclass, field
 from src.clue import Clue
-from src.constants import ACTION, MAX_RANK
+from src.constants import ACTION, MAX_RANK, Status
 from src.finesse import Finesse
 
 
@@ -12,36 +12,27 @@ from src.finesse import Finesse
 class Card:
     """Card information at one player's hand."""
 
-    # basic information
+    # Basic information.
     order: int = -1  # unique No. for each card
     rank: int = -1
     suit_index: int = -1
     owner_index: int = -1
 
-    # status
-    # 0 - nothing/unclued/untouched
-    # 1 - implicit unclued saved (useful, i.e., garbage clue at another card)
-    # 2 - good touch saved (touched, useful, passive save)
-    # 3 - explicit saved (touched, active save)
-    # 4 - unclued finessed (untouched, actionable)
-    # 5 - clued finessed (touched, actionable)
-    # 6 - playable (immediately actionable)
-    # (more status)
-    # -1 - trash/useless
-    status: int = 0
-
-    # clues sequence
-    clues: list = field(default_factory=list)
-
-    # possible finesses sequence
-    finesses: list = field(default_factory=list)
-
-    # negative information
+    # Mutually-Shared Negative information
     negative_colors: list = field(default_factory=list)
     negative_ranks: list = field(default_factory=list)
 
+    # Overall status from a viewer.
+    status: Status = Status.UNSPECIFIED
+
+    # Clues.
+    clues: list = field(default_factory=list)
+
+    # Possible finesses sequence
+    finesses: list = field(default_factory=list)
+
     def add_finesse(self, finesse: Finesse):
-        self.finesses.append(copy.copy(finesse))
+        self.finesses.append(copy.deepcopy(finesse))
 
     def add_clue(self, clue: Clue):
         self.clues.append(copy.copy(clue))
@@ -49,8 +40,6 @@ class Card:
             self.rank = clue.hint_value
         elif clue.hint_type == ACTION.COLOR_CLUE.value:
             self.suit_index = clue.hint_value
-
-        # TODO: fineese info
 
     def add_negative_suit(self, suit_index: int):
         """Add negative suit information."""

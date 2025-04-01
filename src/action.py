@@ -20,3 +20,6 @@ class Action:
     """The final outcome of this action."""
     # Required for play action.
     boom: bool = False
+
+    """The evaluation of this action."""
+    score: int = 0

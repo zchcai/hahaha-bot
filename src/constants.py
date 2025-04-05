@@ -36,6 +36,17 @@ class Status(Enum):
     USEFUL = auto()  # untouched, from post-analysis (e.g., trash clue at another card)
 
 
+class Color(Enum):
+    """All colors (suits)."""
+
+    RED = 0
+    YELLOW = auto()
+    GREEN = auto()
+    BLUE = auto()
+    PURPLE = auto()
+    BLACK = auto()
+
+
 # The initial amount of boom tokens. When it reaches to 0, game ends with failure.
 MAX_BOOM_NUM = 3
 
@@ -48,10 +59,10 @@ MAX_RANK = 5
 
 # Rank 0 is undefined.
 MAX_CARDS_PER_RANK = [
-    [0, 3, 2, 2, 2, 1],  # blue
-    [0, 3, 2, 2, 2, 1],  # green
-    [0, 3, 2, 2, 2, 1],  # yellow
     [0, 3, 2, 2, 2, 1],  # red
+    [0, 3, 2, 2, 2, 1],  # yellow
+    [0, 3, 2, 2, 2, 1],  # green
+    [0, 3, 2, 2, 2, 1],  # blue
     [0, 3, 2, 2, 2, 1],  # purple
     [0, 1, 1, 1, 1, 1],  # black (unique)
 ]

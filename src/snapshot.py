@@ -10,6 +10,7 @@ from src.clue import Clue
 from src.action import Action
 from src.constants import (
     ACTION,
+    Color,
     MAX_BOOM_NUM,
     MAX_CLUE_NUM,
     MAX_RANK,
@@ -318,6 +319,94 @@ class Snapshot:
                         )
                     else:
                         card.status = Status.GOOD_TOUCH_SAVED
+
+        # Handle Number Clue 2-5
+        if (
+            clue.hint_type == ACTION.RANK_CLUE.value
+            and clue.hint_value > 1
+            and clue.hint_value < 6
+        ):
+            # First, we need to see whether this is a Save Clue by checking
+            # whether touching the pending discarding card.
+            discard_slot = self._pending_discard_slot(clue.receiver_index, viewer_index)
+            if (
+                discard_slot is not None
+                and discard_slot.order in clue.touched_orders
+                and len(self._unique_suits_in_rank(clue.hint_value)) > 0
+            ):
+                discard_slot.status = Status.CLUED_SAVED
+
+            else:
+                # This is a Play Clue.
+                possible_suits = [True] * self.num_suits
+                # Remove played suits.
+                for suit, rank in enumerate(self.played_ranks()):
+                    if rank >= clue.hint_value:
+                        possible_suits[suit] = False
+                # Remove touched suits.
+                for suit in range(self.num_suits):
+                    if hinted_table[suit][clue.hint_value] > 0:
+                        possible_suits[suit] = False
+                for i, card in enumerate(clued_cards):
+                    if i != 0:
+                        card.status = Status.GOOD_TOUCH_SAVED
+                        continue
+
+                    card.status = Status.DIRECT_FINESSED
+                    for suit, ok in enumerate(possible_suits):
+                        if ok is False:
+                            continue
+                        card.add_finesse(
+                            Finesse(
+                                rank=clue.hint_value,
+                                suit=suit,
+                                # TODO: Determine potential actionable paths.
+                            )
+                        )
+        # Handle black color.
+        if (
+            clue.hint_type == ACTION.COLOR_CLUE.value
+            and clue.hint_value == Color.BLACK.value
+        ):
+            pass
+
+    def _unique_suits_in_rank(self, rank: int):
+        # First list all potential suits from the discarded pile.
+        # Then remove them by clued or seen or played or good touch induced.
+        discard_table = self.discard_table()
+        played_ranks = self.played_ranks()
+        ret = []
+        for suit_index in range(self.num_suits):
+            if (
+                discard_table[suit_index][rank]
+                == MAX_CARDS_PER_RANK[suit_index][rank] - 1
+                and played_ranks[suit_index] < rank
+            ):
+                ret.append(suit_index)
+        return ret
+
+    def _pending_discard_slot(
+        self, player_index: int, viewer_index: int = None
+    ) -> Optional[Card]:
+        cards = self.hands[player_index]
+        if viewer_index is None:
+            viewer_index = player_index
+        # TODO: we need to predict the possibility in their turn, not the current snapshot.
+        for card in cards:
+            if card.status in [
+                Status.PLAYABLE_KNOWN_BY_PLAYER,
+                Status.TRASH_KNOWN_BY_PLAYER,
+            ]:
+                # This player won't plan to discard.
+                return None
+        # Then, first locate the first untouched or hinted card from right.
+        for card in cards:
+            if card.status == Status.UNSPECIFIED:
+                return card
+        # If no, then return the unclued one.
+        for card in cards:
+            if card.status in Status.USEFUL:
+                return card
 
     def _double_clued_cards(self, clue):
         double_clued = []

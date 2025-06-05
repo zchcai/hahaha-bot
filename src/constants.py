@@ -39,6 +39,8 @@ class Status(Enum):
 class Color(Enum):
     """All colors (suits)."""
 
+    UNSPECIFIED = -1
+
     RED = 0
     YELLOW = auto()
     GREEN = auto()

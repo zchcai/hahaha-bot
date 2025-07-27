@@ -17,6 +17,8 @@ def check_convention(snapshot: Snapshot, action: Action, viewer_index: int) -> b
     if viewer_index is None:
         viewer_index = player_index
 
+    snapshot.recalculate_trash_cards(player_index, viewer_index)
+
     if action.action_type == ACTION.PLAY.value:
         pending_play = snapshot.get_card_from_hand(
             player_index=player_index, order=action.card.order
@@ -35,6 +37,7 @@ def check_convention(snapshot: Snapshot, action: Action, viewer_index: int) -> b
             return True  # possibly ok, normal discard
         return False
 
+    # The main check for clues.
     receiver_index = action.clue.receiver_index
     clue = action.clue
     clued_cards = [
@@ -112,6 +115,16 @@ def evaluate_action(
 
     remaining_search_level -= 1
     next_snapshot = snapshot.next_snapshot(action, viewer_index)
+
+    # Check annotation validation. Basically, will we give a wrong information in the next snapshot?
+
+    for player in range(next_snapshot.num_players):
+        for card in next_snapshot.hands[player]:
+            status = card.status
+            if status == Status.USEFUL and not snapshot.is_useful(card):
+                # Wrong annotation and then the score should be negative.
+                return -1
+
     next_player_index = (action.player_index + 1) % snapshot.num_players
     sorted_actions = evaluate(
         next_snapshot,
@@ -120,6 +133,7 @@ def evaluate_action(
         remaining_search_level=remaining_search_level,
     )
     if len(sorted_actions) < 1:
+        # Nothing can be done. Then the score is negative.
         return -1
     # Use the cumulative score as the parent score.
     return sum(action.score for action in sorted_actions)

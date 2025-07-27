@@ -220,6 +220,8 @@ class Snapshot:
         if viewer_index is None:
             viewer_index = action.player_index
 
+        # Based on the draw, rule out relevant possibility in everyone's notes.
+
     def _perform_play(self, action: Action, viewer_index=None):
         self.play_pile.append(
             self._remove_card_from_hand(action.player_index, action.card.order)
@@ -227,13 +229,106 @@ class Snapshot:
         if viewer_index is None:
             viewer_index = action.player_index
 
+        # The (immediate) next player(s) will update information depends on situations.
+        # Depends on available know playable cards.
+        # Depends on playing a clued or unclued card.
+
     def _perform_discard(self, action: Action, viewer_index=None):
+        if viewer_index is None:
+            viewer_index = action.player_index
+
+        discarded_card = self.get_card_from_hand(action.player_index, action.card.order)
+
+        if discarded_card.status not in [
+            Status.TRASH_KNOWN_BY_PLAYER,
+            Status.UNSPECIFIED,
+        ]:
+            # Re-position.
+            raise Exception(
+                "Discarded card is possibly useful. It might mean re-positioning."
+            )
+
+        # The immediate next player will update information depends on situations.
+        # Depends on clues amount: 2+, 1, or 0:
+        # Depends on whether there is a known playable card.
+        # Depends on discard n-th supposed card.
+        next_player_index = (action.player_index + 1) % self.num_players
+        known_playable_cards = False
+        for c in self.hands[action.player_index]:
+            if c.status == Status.PLAYABLE_KNOWN_BY_PLAYER:
+                known_playable_cards = True
+        cards_pending_discard_with_order = []
+        # The iteration order starts from the discard slot to draw slot.
+        for c in self.hands[action.player_index]:
+            if c.status == Status.TRASH_KNOWN_BY_PLAYER:
+                cards_pending_discard_with_order.append(c.order)
+        for c in self.hands[action.player_index]:
+            if (
+                c.order not in cards_pending_discard_with_order
+                and c.status == Status.UNSPECIFIED
+            ):
+                cards_pending_discard_with_order.append(c.order)
+
+        num_cards_to_save = 0
+        if discarded_card.order not in cards_pending_discard_with_order:
+            # This should not happen.
+            # Otherwise, very special case.
+            raise Exception("Discarded card is not expected at all.")
+
+        discarded_card_index = -1
+        for index, order_index in enumerate(cards_pending_discard_with_order):
+            if discarded_card.order == order_index:
+                discarded_card_index = index
+                break
+
+        if discarded_card_index == 0:
+            if known_playable_cards is True:
+                # Now, this player should not discard. Also, not saveable by clues.
+                # It must at least save one card,
+                # either for the next turn, or planning for the future.
+                num_cards_to_save = (1 if self.clue_tokens > 0 else 0) + 1
+        else:
+            # Count how many cards to save for the next player.
+
+            # no immediately playable cards:
+            # 1. No clues (0), offset 1 discard: 1
+            # 2. No clues (0), offset 2 discard: 2
+            # 3. 1+ clue, offset 1 discard: 2
+            # 4. 1+ clue, offset 2 discard: 3
+
+            # own immediately playable cards:
+            # 1. No clues (0), offset 1 discard: 2
+            # 2. No clues (0), offset 2 discard: 3
+            # 3. 1+ clue, offset 1 discard: 3
+            # 4. 1+ clue, offset 2 discard: 4
+            num_cards_to_save = (
+                self.clue_tokens
+                + discarded_card_index
+                + (1 if known_playable_cards is True else 0)
+            )
+
+        # Conditionally mark the next player's untouched or unclued cards as saved.
+        if num_cards_to_save > 0:
+            marked = 0
+            for card in self.hands[next_player_index]:
+                if card.status not in [
+                    Status.CLUED_SAVED,
+                    Status.DIRECT_FINESSED,
+                    Status.GOOD_TOUCH_SAVED,
+                    Status.INDIRECT_FINESSED,
+                    Status.PLAYABLE_KNOWN_BY_PLAYER,
+                ]:
+                    card.status = Status.USEFUL
+                    marked += 1
+                    if marked == num_cards_to_save:
+                        break
+
+        # DO_NOT_MODIFY_BEGIN
         self.discard_pile.append(
             self._remove_card_from_hand(action.player_index, action.card.order)
         )
         self.clue_tokens += 1
-        if viewer_index is None:
-            viewer_index = action.player_index
+        # DO_NOT_MODIFY_END
 
     def _perform_boom(self, action: Action, viewer_index=None):
         self.discard_pile.append(
@@ -473,7 +568,51 @@ class Snapshot:
 
     def played_ranks(self):
         """The current discarded cards."""
-        played = [0] * (self.num_suits + 1)
+        played = [0] * (self.num_suits)
         for card in self.play_pile:
             played[card.suit_index] = max(card.rank, played[card.suit_index])
         return played
+
+    def recalculate_trash_cards(self, player_index: int, viewer_index: int = None):
+        """Recalculate trash cards from public information (played, discarded, seen) and private
+        views (clued, touched, saved).
+
+        This function directly modifies card status for all players from viewer's perspective.
+        """
+        if viewer_index is None:
+            viewer_index = player_index
+        played_ranks = self.played_ranks()
+        discard_table = self.discard_table()
+        hinted_table = self.hints_table()
+        for person_index in range(self.num_players):
+            for card in self.hands[person_index]:
+                if card.status == Status.TRASH_KNOWN_BY_PLAYER:
+                    # Terminal state: a trash card cannot become a useful card any more.
+                    continue
+                if self.is_useful(card) is False:
+                    card.status = Status.TRASH_KNOWN_BY_PLAYER
+                    continue
+
+    def is_useful(self, card: Card):
+        played_ranks = self.played_ranks()
+        if card.status == Status.TRASH_KNOWN_BY_PLAYER:
+            return False
+        # A finished rank.
+        if card.rank != -1 and card.rank <= min(played_ranks):
+            return False
+        # A finished color.
+        if (
+            card.suit_index != Color.UNSPECIFIED.value
+            and played_ranks[card.suit_index] == MAX_RANK
+        ):
+            return False
+        # A unreachable card.
+        discard_ranks = self.discard_table()
+        if card.rank != -1 and card.suit_index != Color.UNSPECIFIED.value:
+            for lower_rank in range(1, card.rank):
+                if (
+                    discard_ranks[card.suit_index][lower_rank]
+                    == MAX_CARDS_PER_RANK[card.suit_index][lower_rank]
+                ):
+                    return False
+        return True

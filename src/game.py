@@ -16,6 +16,7 @@ from src.constants import (
     MAX_CLUE_NUM,
     MAX_RANK,
 )
+from src.conventions import evaluate
 from src.snapshot import Snapshot
 from src.utils import printf, dump
 
@@ -506,14 +507,11 @@ class Game:
         s.num_suits = self.num_suits
         s.num_players = len(self.player_names)
 
-        game_valid_actions = s.get_valid_actions(
-            self.our_player_index, self.our_player_index
-        )
-        dump(game_valid_actions)
-        # return game_valid_actions[random.randint(0, len(game_valid_actions) - 1)]
-        return self.pre_action_intention_check(
-            self.our_player_index, self.our_player_index
-        )[0]
+        # Switch to new approach.
+        return evaluate(s, self.our_player_index, self.our_player_index)[0]
+        # return self.pre_action_intention_check(
+        #    self.our_player_index, self.our_player_index
+        # )[0]
 
     def try_discard(self, cards):
         if self.clue_tokens == MAX_CLUE_NUM:
